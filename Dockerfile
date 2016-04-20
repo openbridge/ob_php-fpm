@@ -78,7 +78,7 @@ RUN sed -i -e "s/;listen.mode = 0660/listen.mode = 0750/g" /etc/php-fpm.d/www.co
     sed -i -e "s/;listen.owner = nobody/listen.owner = nobody/g" /etc/php-fpm.d/www.conf ;\
     sed -i -e "s/;listen.group = nobody/listen.group = nobody/g" /etc/php-fpm.d/www.conf ;\
     sed -i -e "s/listen = 127.0.0.1:9000/listen = 9000/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/listen.allowed_clients = 127.0.0.1/;listen.allowed_clients = 127.0.0.1/g" /etc/php-fpm.d/www.conf ;\
+    sed -i -e "s/listen.allowed_clients = 127.0.0.1/;listen.allowed_clients = 172.17.0.1/g" /etc/php-fpm.d/www.conf ;\
 
     sed -i -e "s/user = apache/user = nginx/g" /etc/php-fpm.d/www.conf ;\
     sed -i -e "s/group = apache/group = nginx/g" /etc/php-fpm.d/www.conf ;\
@@ -99,7 +99,7 @@ EXPOSE 9000
 # MONIT
 ###################
 
-ENV MONIT_VERSION 5.15
+ENV MONIT_VERSION 5.17.1
 
 # Add Monit binary
 RUN mkdir -p /tmp/monit ;\
