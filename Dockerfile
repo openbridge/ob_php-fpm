@@ -42,12 +42,16 @@ RUN yum --enablerepo=remi,remi-php70 install -y \
     make \
     unzip \
     php-fpm \
+    php-cli \
+    php-common \
     php-mysql \
     php-pear \
+    php-bcmat \
     php-pdo \
     php-mysqlnd \
     php-gd \
     php-mbstring \
+    php-soap \
     php-apc \
     php-tidy \
     php-mcrypt \
