@@ -1,2 +1,8 @@
 # Build Environment
 build_environment: Ubuntu 12.04
+
+build:
+    post_ci:
+      - sudo pip install -U docker-compose
+      - docker-compose up -d
+      - docker ps
