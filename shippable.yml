@@ -1,6 +1,12 @@
-# Build Environment
-build_environment: Ubuntu 12.04
+# specifying build image
+build_image: drydock/u14php7all:tip
+
+# language setting
 language: php
+
+# specifying runtime
+php:
+   '7.0'
 build:
     post_ci:
       - sudo pip install -U docker-compose
