@@ -2,7 +2,7 @@
 language: none
 
 pre_ci:
-      - docker build -t openbridge/php-fpm .
+      - docker build -t openbridge/php-fpm:latest
 build:
     post_ci:
       - sudo pip install -U docker-compose awscli
