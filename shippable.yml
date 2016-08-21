@@ -10,3 +10,8 @@ build:
       - docker push 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
       - docker-compose up -d
       - docker ps
+
+integrations:
+  hub:
+    - integrationName: shippable-aws-ecr
+      type: ecr
