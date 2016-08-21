@@ -2,10 +2,11 @@
 language: none
 
 pre_ci:
-      - docker build -t openbridge/php-fpm:latest
+      - docker build -t openbridge/php-fpm .
 build:
     post_ci:
       - sudo pip install -U docker-compose awscli
+      - docker tag openbridge/php-fpm:latest 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
       - docker push 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
       - docker-compose up -d
       - docker ps
