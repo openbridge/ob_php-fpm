@@ -6,7 +6,7 @@ pre_ci:
 build:
     post_ci:
       - sudo pip install -U docker-compose awscli
-      - docker tag -f $SHIPPABLE_CONTAINER_NAME:$BUILD_NUMBER 791778434480.dkr.ecr.us-east-1.amazonaws.com/$SHIPPABLE_CONTAINER_NAME:latest
+      - docker tag -f $SHIPPABLE_CONTAINER_NAME:latest 791778434480.dkr.ecr.us-east-1.amazonaws.com/$SHIPPABLE_CONTAINER_NAME:latest
       - docker commit $SHIPPABLE_CONTAINER_NAME 791778434480.dkr.ecr.us-east-1.amazonaws.com/$SHIPPABLE_CONTAINER_NAME:latest
       - docker push 791778434480.dkr.ecr.us-east-1.amazonaws.com/$SHIPPABLE_CONTAINER_NAME:latest
       - docker-compose up -d
