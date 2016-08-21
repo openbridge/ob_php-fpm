@@ -6,8 +6,7 @@ pre_ci:
 build:
     post_ci:
       - sudo pip install -U docker-compose awscli
-      - aws ecr create-repository --repository-name openbridge/php-fpm:latest
-      - docker commit $SHIPPABLE_CONTAINER_NAME 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
+      - docker commit openbridge/php-fpm:latest 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
       - docker push 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
       - docker-compose up -d
       - docker ps
