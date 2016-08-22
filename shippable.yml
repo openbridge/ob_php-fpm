@@ -10,6 +10,7 @@ build:
       - docker push 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
       - docker-compose up -d
       - docker ps
+      - (echo >/dev/tcp/localhost/9000) &>/dev/null && echo "TCP port 9000 open" && exit 0 || echo "TCP port 9000 close" && exit 1
 
 integrations:
   hub:
