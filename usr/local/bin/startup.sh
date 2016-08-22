@@ -17,3 +17,7 @@ chmod 700 /etc/monitrc
 
 # We will let Monit take care of starting services
 /usr/local/bin/monit -I -c /etc/monitrc -l /ebs/logs/monit/monit.log
+
+sleep 10
+
+(echo >/dev/tcp/0.0.0.0/9000) &>/dev/null && echo "TCP port 9000 open" && exit 0 || echo "TCP port 9000 close" && exit 1
