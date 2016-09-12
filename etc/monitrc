@@ -6,7 +6,6 @@
 set daemon 5
 set idfile /var/lib/monit/id
 set eventqueue
-include globstring
 basedir /var/lib/monit/events
 slots 1000
 

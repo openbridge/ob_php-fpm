@@ -103,7 +103,7 @@ EXPOSE 9000
 # MONIT
 ###################
 
-ENV MONIT_VERSION 5.17.1
+ENV MONIT_VERSION 5.19.0
 
 # Add Monit binary
 RUN mkdir -p /tmp/monit ;\
