@@ -1,145 +1,66 @@
-
-###################
-# OPERATING SYTSEM
-###################
-
-# The container uses CentOS 7.x
-FROM centos:latest
+FROM alpine:3.6
 MAINTAINER Thomas Spicer (thomas@openbridge.com)
 
-###################
-# STORAGE
-###################
-
-# Set the volume to to store activity
-# /ebs is a standard mount point from the host
-VOLUME ["/ebs"]
-
-###################
-# YUM PACKAGES
-###################
-
-# Add the latests EPEL 7 Repo
-RUN yum install epel-release -y ;\
-    rpm -Uvh http://rpms.famillecollet.com/enterprise/remi-release-7.rpm
-
-# Run the update with the EPEL 7 Repo
-RUN yum update -y
-
-RUN yum --enablerepo=remi,remi-php70 install -y \
-    initscripts \
-    curl \
-    cronie \
-    pwgen \
-    gcc-c++ \
-    mysql \
-    mysql-devel \
-    pcre-devel \
-    zlib-devel \
-    openssl \
-    openssl-devel \
-    wget \
-    make \
-    unzip \
-    php-fpm \
-    php-cli \
-    php-common \
-    php-mysql \
-    php-pear \
-    php-bcmat \
-    php-pdo \
-    php-mysqlnd \
-    php-gd \
-    php-mbstring \
-    php-soap \
-    php-apc \
-    php-tidy \
-    php-mcrypt \
-    php-xml \
-    php-redis \
-    php-dom \
-    php-devel
-
-###################
-# PHP-FPM
-###################
-
-# Tweak php-fpm config
-RUN sed -i -e "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/g" /etc/php.ini ;\
-    sed -i -e "s/upload_max_filesize\s*=\s*2M/upload_max_filesize = 100M/g" /etc/php.ini ;\
-    sed -i -e "s/post_max_size\s*=\s*8M/post_max_size = 100M/g" /etc/php.ini ;\
-    sed -i -e "s/zlib.output_compression\s*=\s*Off/zlib.output_compression = On/g" /etc/php.ini ;\
-   #sed -i -e "s/cgi.fix_pathinfo=0/cgi.fix_pathinfo=1/g" /etc/php.ini ;\
-    sed -i -e "s/;catch_workers_output\s*=\s*yes/catch_workers_output = yes/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/pm.max_children = 5/pm.max_children = 9/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/pm.start_servers = 2/pm.start_servers = 3/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/pm.min_spare_servers = 1/pm.min_spare_servers = 2/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/pm.max_spare_servers = 3/pm.max_spare_servers = 4/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/pm.max_requests = 500/pm.max_requests = 200/g" /etc/php-fpm.d/www.conf
-
-# Fix ownership for php-fpm
-RUN sed -i -e "s/;listen.mode = 0660/listen.mode = 0750/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/;listen.owner = nobody/listen.owner = nobody/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/;listen.group = nobody/listen.group = nobody/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/listen = 127.0.0.1:9000/listen = 9000/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/listen.allowed_clients = 127.0.0.1/;listen.allowed_clients = 172.17.0.1/g" /etc/php-fpm.d/www.conf ;\
-
-    sed -i -e "s/user = apache/user = nginx/g" /etc/php-fpm.d/www.conf ;\
-    sed -i -e "s/group = apache/group = nginx/g" /etc/php-fpm.d/www.conf ;\
-    find /etc/php.d/ -name "*.ini" -exec sed -i -re 's/^(\s*)#(.*)/\1;\2/g' {} \;
-
-# Add users for programs that need them
-RUN groupadd nginx ;\
-    groupmod -g 2011 nginx ;\
-    useradd -u 2011 -s /bin/false -d /bin/null -c "nginx user" -g nginx nginx
-
-###################
-# NETWORK
-###################
+RUN set -x \
+  && addgroup -S www-data \
+  && adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G www-data www-data \
+  && apk add --no-cache --virtual .build-deps \
+        wget \
+        linux-headers \
+        curl \
+        unzip \
+  && echo '@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories \
+  && echo '@community http://nl.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories \
+  && apk add --no-cache --update \
+      php7@community \
+      php7-bcmath@community \
+      php7-dom@community \
+      php7-common@community \
+      php7-ctype@community \
+      php7-curl@community \
+      php7-fileinfo@community \
+      php7-fpm@community \
+      php7-gd@community \
+      php7-iconv@community \
+      php7-intl@community \
+      php7-json@community \
+      php7-mbstring@community \
+      php7-mcrypt@community \
+      php7-mysqli@community \
+      php7-mysqlnd@community \
+      php7-opcache@community \
+      php7-openssl@community \
+      php7-pdo@community \
+      php7-pdo_mysql@community \
+      php7-pdo_pgsql@community \
+      php7-pdo_sqlite@community \
+      php7-phar@community \
+      php7-posix@community \
+      php7-redis@testing \
+      php7-session@community \
+      php7-soap@community \
+      php7-tokenizer@community \
+      php7-xml@community \
+      php7-xmlreader@community \
+      php7-xmlwriter@community \
+      php7-zip@community \
+      php7-zlib@community \
+      curl@community \
+      monit@community \
+      bash@community \
+      xz@community \
+      ca-certificates@community \
+      openssl@community \
+      tar@community \
+  && mkdir -p /var/run \
+  && rm -rf /tmp/* \
+  && rm -rf /var/cache/apk/*
+COPY conf/php.ini /etc/php7/conf.d/50-setting.ini
+COPY conf/monit/check_server /etc/monit.d/check_server
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 9000
 
-###################
-# MONIT
-###################
-
-ENV MONIT_VERSION 5.19.0
-
-# Add Monit binary
-RUN mkdir -p /tmp/monit ;\
-    cd /tmp/monit ;\
-    wget https://bitbucket.org/tildeslash/monit/downloads/monit-${MONIT_VERSION}-linux-x64.tar.gz ;\
-    tar -xf monit* && cd monit* ;\
-    rm -Rf /usr/local/bin/mont ;\
-    mv bin/monit /usr/local/bin ;\
-    chmod u+x /usr/local/bin/monit ;\
-    ln /usr/local/bin/monit /usr/bin/monit
-
-EXPOSE 2888
-
-ADD etc/monitrc /etc/monitrc
-COPY etc/monit.d/* /etc/monit.d/
-
-###################
-# STARTUP
-###################
-
-# When this is present it prevents crond from running
-RUN sed -i '/session    required   pam_loginuid.so/d' /etc/pam.d/crond
-
-# Setup the Init services
-COPY etc/init.d/* /etc/init.d/
-
-# Auto start services
-RUN chmod +x /etc/init.d/crond ;\
-    chkconfig crond --add ;\
-    chkconfig crond on
-
-RUN chmod +x /etc/init.d/php-fpm ;\
-    chkconfig php-fpm --add ;\
-    chkconfig php-fpm on
-
-ADD usr/local/bin/startup.sh /usr/local/bin/startup.sh
-RUN chmod +x /usr/local/bin/startup.sh
-
-CMD ["/usr/local/bin/startup.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]

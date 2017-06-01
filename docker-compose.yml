@@ -1,18 +1,12 @@
-# The mode is set to AWS. You may want to change this is running locally
-php-fpm:
-  image: openbridge/php-fpm:latest
-  volumes:
-    - /ebs:/ebs
-  environment:
-    - ob_mode=aws
-    - ob_tag=php-fpm
-  ports:
-    - "9000:9000"
-  restart: always
-  tty: true
-  container_name: php-fpm
-  ulimits:
-    nproc: 65535
-    nofile:
-        soft: 49999
-        hard: 99999
+version: '3.1'
+services:
+  php-fpm:
+    image: openbridge/php-fpm
+    container_name: php-fpm
+    restart: always
+    tty: true
+    ulimits:
+      nproc: 65535
+      nofile:
+          soft: 49999
+          hard: 99999

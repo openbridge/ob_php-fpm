@@ -1,5 +1,0 @@
-check process php-fpm with pidfile /var/run/php-fpm/php-fpm.pid
-   start program = "/etc/init.d/php-fpm start"
-   stop program  = "/etc/init.d/php-fpm stop"
-   if failed port 9000 type TCP then restart
-   if 10 restarts within 10 cycles then timeout
