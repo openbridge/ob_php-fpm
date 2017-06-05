@@ -1,7 +1,7 @@
 version: '3.1'
 services:
   php-fpm:
-    image: openbridge/php-fpm
+    image: openbridge/ob_php-fpm
     container_name: php-fpm
     restart: always
     env_file:

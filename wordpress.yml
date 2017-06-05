@@ -35,7 +35,7 @@ services:
           soft: 49999
           hard: 99999
   php-fpm:
-    image: openbridge/php-fpm
+    image: openbridge/ob_php-fpm
     container_name: php-fpm
     restart: always
     depends_on:
