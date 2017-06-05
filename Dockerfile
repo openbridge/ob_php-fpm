@@ -62,8 +62,7 @@ RUN set -x \
   && rm -rf /tmp/* \
   && rm -rf /var/cache/apk/*
 
-COPY conf/monit/check_server /etc/monit.d/check_server
-COPY plugins/ /usr/src/plugins/
+COPY conf/monit/ /etc/monit.d/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY check_wwwdata.sh /usr/bin/check_wwwdata
 RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata
