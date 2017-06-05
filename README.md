@@ -8,21 +8,24 @@ This is a Docker image creates a high performance, optimized container for PHP-F
 * Security
 * and many others.
 
-
 # Versioning
 | Docker Tag | Git Hub Release | PHP Version | Alpine Version |
 |-----|-------|-----|--------|
-| latest | Master | 7.1.5 | 3.6 |
+| latest | develop | 7.1.5 | 3.6 |
 
 # Build
 ```
-docker build -t openbridge/php-fpm .
+docker build -t openbridge/ob_php-fpm .
+```
+or pull from Docker Hub:
+```
+docker pull openbridge/ob_php-fpm
 ```
 # Run
 ```bash
 docker run -it --rm \
     -p 9000:9000 \
-    -e "APP_DOCROOT=/html " \
+    -e "APP_DOCROOT=/app " \
     --name php-fpm \
     openbridge/php-fpm
 ```
@@ -141,8 +144,34 @@ The PHP and cache settings are a function of the available system resources. Thi
  PHP_MAX_CHILDREN=$(($TOTALCPU * 2)); echo "${PHP_MAX_CHILDREN}"
  ```
 
+# Permissions
+We have standardized on the user, group and UID/GID to work seamlessly with NGINX
+
+```docker
+&& addgroup -g 82 -S www-data \
+&& adduser -u 82 -D -S -h /var/cache/php-fpm -s /sbin/nologin -G www-data www-data \
+```
+We are also makign sure all the underlying permissions and owners are set correctly:
+
+```bash
+echo "Setting ownership and permissions on APP_DOCROOT and CACHE_PREFIX... "
+find ${APP_DOCROOT} ! -user www-data -exec /usr/bin/env bash -c "chown www-data:www-data {}" \;
+find ${APP_DOCROOT} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {}" \;
+find ${APP_DOCROOT} ! -perm 644 -type f -exec /usr/bin/env bash -c "chmod 644 {}" \;
+find ${CACHE_PREFIX} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {}" \;
+find ${CACHE_PREFIX} ! -perm 755 -type f -exec /usr/bin/env bash -c "chmod 755 {}" \;
+```
+
+
+
 # Cache
 Opcache is enabled by default. The available cache memory is determined by the available system resources.
+
+The cache directory is mapped to `tmpfs` as follows int he compose file:
+```
+tmpfs:
+  - /var/cache
+```
 
 # Logging
 Logs are sent to stdout and stderr PHP-FPM.
@@ -182,10 +211,6 @@ check directory cache-owner with path {{CACHE_PREFIX}}
       every 3 cycles
       if failed uid www-data then exec "/usr/bin/env bash -c 'find {{CACHE_PREFIX}} -type d -exec chown www-data:www-data {} \; && find {{CACHE_PREFIX}} -type f -exec chown www-data:www-data {} \;'"
 ```
-
-# Plugins
-
-# TODO
 
 # Issues
 
