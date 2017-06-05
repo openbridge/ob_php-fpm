@@ -22,6 +22,7 @@ RUN set -x \
       php7-dom@community \
       php7-common@community \
       php7-ctype@community \
+      php7-cli@community \
       php7-curl@community \
       php7-fileinfo@community \
       php7-fpm@community \
