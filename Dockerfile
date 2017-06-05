@@ -62,7 +62,6 @@ RUN set -x \
   && rm -rf /tmp/* \
   && rm -rf /var/cache/apk/*
 
-COPY test/ /tmp/
 COPY conf/monit/check_server /etc/monit.d/check_server
 COPY plugins/ /usr/src/plugins/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
