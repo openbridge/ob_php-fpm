@@ -22,9 +22,7 @@ docker build -t openbridge/php-fpm .
 ```bash
 docker run -it --rm \
     -p 9000:9000 \
-    -e "NGINX_DOCROOT=/html " \
-    -e "NGINX_SERVER_NAME=mydomain.com" \
-    -e "NGINX_TEST_INSTALL=false" \
+    -e "APP_DOCROOT=/html " \
     --name php-fpm \
     openbridge/php-fpm
 ```
@@ -32,12 +30,14 @@ Via Docker compose
 ```
 docker-compose up -d
 ```
+# App Root
 
+The default root app directory is `/app`. If you want to change this default you need to see `APP_DOCROOT` via ENV variable. For example, if you want to use `/html` as your root you would set `APP_DOCROOT=/html`
 
 # Docker Volume
-To mount your web app or html files you will need to mount the volume on the host that contains your files. Make sure you are setting the `NGINX_DOCROOT` in your run or `docker-compose.yml` file
+To mount your web app or html files you will need to mount the volume on the host that contains your files. Make sure you are setting the `APP_DOCROOT` in your run or `docker-compose.yml` file
 ```docker
--v /your/webapp/path:{{NGINX_DOCROOT}}:ro
+-v /your/webapp/path:{{APP_DOCROOT}}:ro
 ```
 You can also set the cache directory to leverage in-memory cache like `tmpfs`:
 ```docker
@@ -168,11 +168,11 @@ check process php-fpm with pidfile "/var/run/php-fpm.pid"
 
 check program wwwdata-owner with path /usr/bin/env bash -c "check_wwwdata owner"
       every 3 cycles
-      if status != 0 then exec "/usr/bin/env bash -c 'find {{NGINX_DOCROOT}} -type d -exec chown www-data:www-data {} \; && find {{NGINX_DOCROOT}} -type f -exec chown www-data:www-data {} \;'"
+      if status != 0 then exec "/usr/bin/env bash -c 'find {{APP_DOCROOT}} -type d -exec chown www-data:www-data {} \; && find {{APP_DOCROOT}} -type f -exec chown www-data:www-data {} \;'"
 
 check program wwwdata-permissions with path /usr/bin/env bash -c "check_wwwdata permission"
       every 3 cycles
-      if status != 0 then exec "/usr/bin/env bash -c 'find {{NGINX_DOCROOT}} -type d -exec chmod 755 {} \; && find {{NGINX_DOCROOT}} -type f -exec chmod 644 {} \;'"
+      if status != 0 then exec "/usr/bin/env bash -c 'find {{APP_DOCROOT}} -type d -exec chmod 755 {} \; && find {{APP_DOCROOT}} -type f -exec chmod 644 {} \;'"
 
 check directory cache-permissions with path {{CACHE_PREFIX}}
       every 3 cycles

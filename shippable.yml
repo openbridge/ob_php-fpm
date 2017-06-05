@@ -6,12 +6,12 @@ pre_ci:
 build:
     post_ci:
       - sudo pip install -U docker-compose awscli
-      - docker commit $SHIPPABLE_CONTAINER_NAME 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
-      - docker push 791778434480.dkr.ecr.us-east-1.amazonaws.com/openbridge/php-fpm:latest
+      - docker commit $SHIPPABLE_CONTAINER_NAME registry.hub.docker.com/openbridge/php-fpm:latest
+      - docker push registry.hub.docker.comopenbridge/php-fpm:latest
       - docker-compose up -d
       - docker ps
 
 integrations:
   hub:
-    - integrationName: shippable-aws-ecr
-      type: ecr
+    - integrationName: shippable-docker-hub
+      type: docker

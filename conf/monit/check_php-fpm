@@ -14,11 +14,11 @@ check process php-fpm with pidfile "/var/run/php-fpm.pid"
 
 check program wwwdata-owner with path /usr/bin/env bash -c "check_wwwdata owner"
       every 3 cycles
-      if status != 0 then exec "/usr/bin/env bash -c 'find {{NGINX_DOCROOT}} -type d -exec chown www-data:www-data {} \; && find {{NGINX_DOCROOT}} -type f -exec chown www-data:www-data {} \;'"
+      if status != 0 then exec "/usr/bin/env bash -c 'find {{APP_DOCROOT}} -type d -exec chown www-data:www-data {} \; && find {{APP_DOCROOT}} -type f -exec chown www-data:www-data {} \;'"
 
 check program wwwdata-permissions with path /usr/bin/env bash -c "check_wwwdata permission"
       every 3 cycles
-      if status != 0 then exec "/usr/bin/env bash -c 'find {{NGINX_DOCROOT}} -type d -exec chmod 755 {} \; && find {{NGINX_DOCROOT}} -type f -exec chmod 644 {} \;'"
+      if status != 0 then exec "/usr/bin/env bash -c 'find {{APP_DOCROOT}} -type d -exec chmod 755 {} \; && find {{APP_DOCROOT}} -type f -exec chmod 644 {} \;'"
 
 check directory cache-permissions with path {{CACHE_PREFIX}}
       every 3 cycles
