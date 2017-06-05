@@ -4,9 +4,19 @@ services:
     image: openbridge/php-fpm
     container_name: php-fpm
     restart: always
+    env_file:
+      - ./env/phpfpm.env
+    ports:
+      - 9000:9000
+    tmpfs:
+      - /var/cache
     tty: true
+    volumes:
+       - db_data:/html
     ulimits:
       nproc: 65535
       nofile:
           soft: 49999
           hard: 99999
+volumes:
+  db_data:
