@@ -6,12 +6,12 @@ function php-fpm() {
    TOTALCPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
    TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
 
-   PHP_START_SERVERS=$(($TOTALCPU / 2)); echo "${PHP_START_SERVERS}"
-   PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)); echo "${PHP_MIN_SPARE_SERVERS}"
-   PHP_MAX_SPARE_SERVERS="${TOTALCPU}"; echo "${PHP_MAX_SPARE_SERVERS}"
-   PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)); echo "${PHP_MEMORY_LIMIT}"
-   PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)); echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"
-   PHP_MAX_CHILDREN=$(($TOTALCPU * 2)); echo "${PHP_MAX_CHILDREN}"
+   if [[ -z $PHP_START_SERVERS ]]; then PHP_START_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_START_SERVERS}"; fi
+   if [[ -z  $PHP_MIN_SPARE_SERVERS ]]; then PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_MIN_SPARE_SERVERS}"; fi
+   if [[ -z  $PHP_MAX_SPARE_SERVERS ]]; then PHP_MAX_SPARE_SERVERS="${TOTALCPU}" && echo "${PHP_MAX_SPARE_SERVERS}"; fi
+   if [[ -z  $PHP_MEMORY_LIMIT ]]; then PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)) && echo "${PHP_MEMORY_LIMIT}"; fi
+   if [[ -z  $PHP_OPCACHE_MEMORY_CONSUMPTION ]]; then PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)) && echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"; fi
+   if [[ -z  $PHP_MAX_CHILDREN ]]; then PHP_MAX_CHILDREN=$(($TOTALCPU * 2)) && echo "${PHP_MAX_CHILDREN}"; fi
 
   {
               echo '[global]'
