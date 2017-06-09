@@ -1,9 +1,14 @@
 FROM alpine:3.6
 MAINTAINER Thomas Spicer (thomas@openbridge.com)
 
+ENV VAR_PREFIX=/var/run
+ENV LOG_PREFIX=/var/log/php-fpm
+ENV TEMP_PREFIX=/tmp
+ENV CACHE_PREFIX=/var/cache
+
 RUN set -x \
-  && addgroup -S www-data \
-  && adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G www-data www-data \
+  && addgroup -g 82 -S www-data \
+  && adduser -u 82 -D -S -h /var/cache/php-fpm -s /sbin/nologin -G www-data www-data \
   && apk add --no-cache --virtual .build-deps \
         wget \
         linux-headers \
@@ -17,6 +22,7 @@ RUN set -x \
       php7-dom@community \
       php7-common@community \
       php7-ctype@community \
+      php7-cli@community \
       php7-curl@community \
       php7-fileinfo@community \
       php7-fpm@community \
@@ -55,12 +61,11 @@ RUN set -x \
   && mkdir -p /var/run \
   && rm -rf /tmp/* \
   && rm -rf /var/cache/apk/*
-COPY conf/php.ini /etc/php7/conf.d/50-setting.ini
-COPY conf/monit/check_server /etc/monit.d/check_server
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 9000
+COPY conf/monit/ /etc/monit.d/
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY check_wwwdata.sh /usr/bin/check_wwwdata
+RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]

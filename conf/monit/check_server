@@ -1,6 +1,0 @@
-check process php-fpm with pidfile "/var/run/php-fpm.pid"
-      start program = "/bin/bash -c /usr/sbin/php-fpm7 -D -g /var/run/php-fpm.pid"
-      stop program = "/bin/bash -c /usr/bin/pkill -INT php-fpm"
-      if failed port 9000 with timeout 30 seconds then restart
-      if cpu > 80% for 10 cycles then restart
-      if 5 restarts within 5 cycles then timeout
