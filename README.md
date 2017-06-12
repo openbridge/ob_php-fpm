@@ -22,6 +22,7 @@ or pull from Docker Hub:
 docker pull openbridge/ob_php-fpm
 ```
 # Run
+Here is a simple run command:
 ```bash
 docker run -it --rm \
     -p 9000:9000 \
@@ -29,7 +30,7 @@ docker run -it --rm \
     --name php-fpm \
     openbridge/php-fpm
 ```
-Via Docker compose
+Via Docker compose (see `docker-compose.yml` in the repo)
 ```
 docker-compose up -d
 ```
@@ -49,7 +50,46 @@ You can also set the cache directory to leverage in-memory cache like `tmpfs`:
 
 You can do the same thing for config files if you wanted to use versions of what we have provided. Just make sure you are mapping locations correctly as NGINX and PHP expect files to be in certain locations.
 
-# Configuration
+# Environment Variables
+You can set the optional ENV variable resources for the container:
+```
+APP_DOCROOT=/app
+PHP_FPM_PORT=9000
+PHP_START_SERVERS=16
+PHP_MIN_SPARE_SERVERS=8
+PHP_MAX_SPARE_SERVERS=16
+PHP_MEMORY_LIMIT=256
+PHP_OPCACHE_MEMORY_CONSUMPTION=96
+PHP_MAX_CHILDREN=16
+```
+However, you don't have to set any if you do not want. The default app root will be set to `app` and the default port will be `9000`. Also, the resource allocations for PHP will be calculated dynamically if they are not set (see below).
+
+
+## Dynamic Resource Allocation
+The PHP and cache settings are a function of the available system resources. This allocation factors in available memory and CPU which is assigned proportionately. The proportion of resources was defined according to researched best practices and reading PHP docs.
+
+```bash
+# Setting the php-fpm configs
+ CPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
+ TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
+
+ if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; fi
+
+ if [[ -z $PHP_START_SERVERS ]]; then PHP_START_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_START_SERVERS}"; fi
+ if [[ -z  $PHP_MIN_SPARE_SERVERS ]]; then PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_MIN_SPARE_SERVERS}"; fi
+ if [[ -z  $PHP_MAX_SPARE_SERVERS ]]; then PHP_MAX_SPARE_SERVERS="${TOTALCPU}" && echo "${PHP_MAX_SPARE_SERVERS}"; fi
+ if [[ -z  $PHP_MEMORY_LIMIT ]]; then PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)) && echo "${PHP_MEMORY_LIMIT}"; fi
+ if [[ -z  $PHP_OPCACHE_MEMORY_CONSUMPTION ]]; then PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)) && echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"; fi
+ if [[ -z  $PHP_MAX_CHILDREN ]]; then PHP_MAX_CHILDREN=$(($TOTALCPU * 2)) && echo "${PHP_MAX_CHILDREN}"; fi
+
+ # Set the listening port
+ if [[ -z $PHP_FPM_PORT ]]; then echo "PHP-FPM port not set. Default to 9000..." && export PHP_FPM_PORT=9000; else echo "OK, PHP-FPM port is set to $PHP_FPM_PORT"; fi
+ # Set the listening port
+ if [[ -z $APP_DOCROOT ]]; then export APP_DOCROOT=/app && mkdir -p "${APP_DOCROOT}"; fi
+ ```
+
+
+# PHP-FPM Configuration
 The following represents the structure of the PHP configs used in this image:
 
 ```bash
@@ -128,22 +168,6 @@ The following represents the structure of the PHP configs used in this image:
   } | tee /etc/php7/conf.d/50-setting.ini
 ```
 
-## Dynamic Resource Allocation
-The PHP and cache settings are a function of the available system resources. This allocation factors in available memory and CPU which is assigned proportionately. The proportion of resources was defined according to researched best practices and reading PHP docs.
-
-```bash
-# Setting the php-fpm configs
- TOTALCPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
- TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
-
- PHP_START_SERVERS=$(($TOTALCPU / 2)); echo "${PHP_START_SERVERS}"
- PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)); echo "${PHP_MIN_SPARE_SERVERS}"
- PHP_MAX_SPARE_SERVERS="${TOTALCPU}"; echo "${PHP_MAX_SPARE_SERVERS}"
- PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)); echo "${PHP_MEMORY_LIMIT}"
- PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)); echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"
- PHP_MAX_CHILDREN=$(($TOTALCPU * 2)); echo "${PHP_MAX_CHILDREN}"
- ```
-
 # Permissions
 We have standardized on the user, group and UID/GID to work seamlessly with NGINX
 
@@ -162,8 +186,6 @@ find ${CACHE_PREFIX} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {
 find ${CACHE_PREFIX} ! -perm 755 -type f -exec /usr/bin/env bash -c "chmod 755 {}" \;
 ```
 
-
-
 # Cache
 Opcache is enabled by default. The available cache memory is determined by the available system resources.
 
@@ -180,7 +202,9 @@ You will likely want to dispatch these logs to a service like Amazon Cloudwatch.
 # Monitoring
 Services in the container are monitored via Monit. One thing to note is that if Monit detects a problem with Nginx it will issue a `STOP` command. THis will shutdown your container because the image uses `CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]`. If you are using `--restart always` in your docker run command the server will automatically restart.
 
-```bash
+The server will also monitor and self-correct any permissions issues it detects:
+
+```
 check process php-fpm with pidfile "/var/run/php-fpm.pid"
       if not exist for 10 cycles then restart
       start program = "/bin/bash -c /usr/sbin/php-fpm7 -g /var/run/php-fpm.pid" with timeout 90 seconds

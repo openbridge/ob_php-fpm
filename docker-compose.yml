@@ -8,11 +8,21 @@ services:
       - ./env/phpfpm.env
     ports:
       - 9000:9000
-    tmpfs:
-      - /var/cache
+    tmpfs: /var/cache
     tty: true
     volumes:
-       - db_data:/html
+       - db_data:/app
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
     ulimits:
       nproc: 65535
       nofile:

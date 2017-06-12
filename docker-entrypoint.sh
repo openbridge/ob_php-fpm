@@ -3,8 +3,10 @@
 function php-fpm() {
 
   # Setting the php-fpm configs
-   TOTALCPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
+   CPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
    TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
+
+   if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; fi
 
    if [[ -z $PHP_START_SERVERS ]]; then PHP_START_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_START_SERVERS}"; fi
    if [[ -z  $PHP_MIN_SPARE_SERVERS ]]; then PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_MIN_SPARE_SERVERS}"; fi
@@ -12,6 +14,11 @@ function php-fpm() {
    if [[ -z  $PHP_MEMORY_LIMIT ]]; then PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)) && echo "${PHP_MEMORY_LIMIT}"; fi
    if [[ -z  $PHP_OPCACHE_MEMORY_CONSUMPTION ]]; then PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)) && echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"; fi
    if [[ -z  $PHP_MAX_CHILDREN ]]; then PHP_MAX_CHILDREN=$(($TOTALCPU * 2)) && echo "${PHP_MAX_CHILDREN}"; fi
+
+   # Set the listening port
+   if [[ -z $PHP_FPM_PORT ]]; then echo "PHP-FPM port not set. Default to 9000..." && export PHP_FPM_PORT=9000; else echo "OK, PHP-FPM port is set to $PHP_FPM_PORT"; fi
+   # Set the listening port
+   if [[ -z $APP_DOCROOT ]]; then export APP_DOCROOT=/app && mkdir -p "${APP_DOCROOT}"; fi
 
   {
               echo '[global]'
@@ -41,8 +48,6 @@ function php-fpm() {
               echo 'listen.mode = 0666'
               echo 'listen.owner = www-data'
               echo 'listen.group = www-data'
-              echo 'user = www-data'
-              echo 'group = www-data'
               echo 'pm = dynamic'
               echo 'pm.max_children = {{PHP_MAX_CHILDREN}}'
               echo 'pm.max_requests = 500'
@@ -87,10 +92,7 @@ function php-fpm() {
 
   } | tee /etc/php7/conf.d/50-setting.ini
 
-# Set the listening port
-  if [[ -z $PHP_FPM_PORT ]]; then echo "PHP-FPM port not set. Default to 9000..." && export PHP_FPM_PORT=9000; else echo "OK, PHP-FPM port is set to $PHP_FPM_PORT"; fi
   mkdir -p "${CACHE_PREFIX}"/fastcgi/
-  if [[ -z $APP_DOCROOT ]]; then export APP_DOCROOT=/app && mkdir -p "${APP_DOCROOT}"; fi
 
 # Set the configs with the ENV Var
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} \;
