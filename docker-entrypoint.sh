@@ -3,10 +3,10 @@
 function php-fpm() {
 
   # Setting the php-fpm configs
-   CPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
+   CPU=$(grep -c ^processor /proc/cpuinfo); echo "${CPU}"
    TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
 
-   if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; fi
+   if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; else TOTALCPU="${CPU}"; fi
 
    if [[ -z $PHP_START_SERVERS ]]; then PHP_START_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_START_SERVERS}"; fi
    if [[ -z  $PHP_MIN_SPARE_SERVERS ]]; then PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_MIN_SPARE_SERVERS}"; fi
@@ -78,7 +78,7 @@ function php-fpm() {
               echo 'opcache.interned_strings_buffer=8'
               echo 'opcache.fast_shutdown=1'
               echo 'opcache.validate_timestamps=2'
-              echo 'opcache.revalidate_freq=60'
+              echo 'opcache.revalidate_freq=15'
               echo 'opcache.use_cwd=1'
               echo 'opcache.max_accelerated_files=100000'
               echo 'opcache.max_wasted_percentage=5'
