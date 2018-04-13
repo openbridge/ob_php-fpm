@@ -65,6 +65,7 @@ RUN set -x \
 COPY conf/monit/ /etc/monit.d/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY check_wwwdata.sh /usr/bin/check_wwwdata
+
 RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
