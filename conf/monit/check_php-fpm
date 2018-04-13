@@ -3,7 +3,7 @@ check process php-fpm with pidfile "/var/run/php-fpm.pid"
       start program = "/bin/bash -c /usr/sbin/php-fpm7 -g /var/run/php-fpm.pid" with timeout 90 seconds
       stop program = "/bin/bash -c /usr/bin/pkill -INT php-fpm"
       every 3 cycles
-      if failed port 9000
+      if failed port {{PHP_FPM_PORT}}
         # Send FastCGI packet: version 1 (0x01), cmd FCGI_GET_VALUES (0x09)
         # padding 8 bytes (0x08), followed by 8xNULLs padding
         send "\0x01\0x09\0x00\0x00\0x00\0x00\0x08\0x00\0x00\0x00\0x00\0x00\0x00\0x00\0x00\0x00"
