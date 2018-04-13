@@ -5,7 +5,7 @@ services:
     container_name: php-fpm
     restart: always
     env_file:
-      - ./env/phpfpm.env
+      - ./env/stage.env
     ports:
       - 9000:9000
     tmpfs: /var/cache

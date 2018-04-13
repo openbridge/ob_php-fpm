@@ -1,4 +1,4 @@
-FROM alpine:3.6
+FROM alpine:3.7
 MAINTAINER Thomas Spicer (thomas@openbridge.com)
 
 ENV VAR_PREFIX=/var/run
