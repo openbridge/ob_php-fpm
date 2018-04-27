@@ -11,7 +11,7 @@ services:
     tmpfs: /var/cache
     tty: true
     volumes:
-       - db_data:/app
+       - /local/path/to/approot:/usr/share/nginx/html
     deploy:
       restart_policy:
         condition: on-failure
@@ -28,5 +28,3 @@ services:
       nofile:
           soft: 49999
           hard: 99999
-volumes:
-  db_data:

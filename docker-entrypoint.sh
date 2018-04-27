@@ -27,11 +27,11 @@ function php-fpm() {
 
   {
               echo '[global]'
-              echo 'error_log = /proc/self/fd/2'
+              echo 'error_log = {{LOG_PREFIX}}/error.log'
               echo
               echo '[www]'
               echo '; if we send this to /proc/self/fd/1, it never appears'
-              echo 'access.log = /proc/self/fd/2'
+              echo 'access.log = {{LOG_PREFIX}}/access.log'
               echo
               echo 'clear_env = no'
               echo '; ping.path = /ping'
@@ -42,6 +42,7 @@ function php-fpm() {
   {
               echo '[global]'
               echo 'daemonize = no'
+              echo 'log_level = notice'
               echo
               echo '[www]'
               echo 'listen = [::]:{{PHP_FPM_PORT}}'
@@ -86,18 +87,15 @@ function php-fpm() {
               echo 'opcache.consistency_checks=0'
               echo 'opcache.huge_code_pages=1'
               echo
+              echo ';opcache.file_cache="{{CACHE_PREFIX}}/fastcgi/.opcache"'
               echo ';opcache.file_cache_only=1'
-              echo ';opcache.file_cache=/html/.opcache'
               echo ';opcache.file_cache_consistency_checks=1'
-
   } | tee /etc/php7/conf.d/50-setting.ini
 
   mkdir -p "${CACHE_PREFIX}"/fastcgi/
 
 # Set the configs with the ENV Var
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} \;
-  find /usr/src -maxdepth 3 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} \;
-
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_FPM_PORT}}|'"${PHP_FPM_PORT}"'|g' {} \;
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_START_SERVERS}}|'"${PHP_START_SERVERS}"'|g' {} \;
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MIN_SPARE_SERVERS}}|'"${PHP_MIN_SPARE_SERVERS}"'|g' {} \;
@@ -105,6 +103,8 @@ function php-fpm() {
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MEMORY_LIMIT}}|'"${PHP_MEMORY_LIMIT}"'|g' {} \;
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_OPCACHE_MEMORY_CONSUMPTION}}|'"${PHP_OPCACHE_MEMORY_CONSUMPTION}"'|g' {} \;
   find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MAX_CHILDREN}}|'"${PHP_MAX_CHILDREN}"'|g' {} \;
+  find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{LOG_PREFIX}}|'"${LOG_PREFIX}"'|g' {} \;
+
 
 }
 
@@ -138,10 +138,7 @@ function monit() {
 
 function permissions() {
 
-    echo "Setting ownership and permissions on APP_DOCROOT and CACHE_PREFIX... "
-    find ${APP_DOCROOT} ! -user www-data -exec /usr/bin/env bash -c "chown www-data:www-data {}" \;
-    find ${APP_DOCROOT} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {}" \;
-    find ${APP_DOCROOT} ! -perm 644 -type f -exec /usr/bin/env bash -c "chmod 644 {}" \;
+    echo "Setting ownership and permissions on CACHE_PREFIX... "
     find ${CACHE_PREFIX} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {}" \;
     find ${CACHE_PREFIX} ! -perm 755 -type f -exec /usr/bin/env bash -c "chmod 755 {}" \;
 
@@ -150,8 +147,8 @@ function permissions() {
 function run() {
 
   php-fpm
-  permissions
   monit
+  permissions
 
   echo "OK: All processes have completed. Service is ready..."
 }
