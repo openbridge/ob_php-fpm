@@ -11,7 +11,7 @@ This is a Docker image creates a high performance, optimized container for PHP-F
 # Versioning
 | Docker Tag | Git Hub Release | PHP Version | Alpine Version |
 |-----|-------|-----|--------|
-| latest | develop | 7.2.4 | edge |
+| latest | develop | 7.2.5 | edge |
 
 # Build
 ```
@@ -34,9 +34,11 @@ Via Docker compose (see `docker-compose.yml` in the repo)
 ```
 docker-compose up -d
 ```
-# App Root
+# Setting Your `APP_DOCROOT`
 
 The default root app directory is `/app`. If you want to change this default you need to see `APP_DOCROOT` via ENV variable. For example, if you want to use `/html` as your root you would set `APP_DOCROOT=/html`
+
+IMPORTANT: The `APP_DOCROOT` should be the same directory that you use within NGINX for the `NGINX_DOCROOT`. Incorrectly setting the root for your web and applciation files is usually is the basis for most config errors.
 
 # Docker Volume
 To mount your web app or html files you will need to mount the volume on the host that contains your files. Make sure you are setting the `APP_DOCROOT` in your run or `docker-compose.yml` file
