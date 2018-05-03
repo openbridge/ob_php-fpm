@@ -6,11 +6,4 @@ pre_ci:
 build:
     post_ci:
       - sudo pip install -U docker-compose awscli
-      - docker commit $SHIPPABLE_CONTAINER_NAME registry.hub.docker.com/openbridge/ob_php-fpm:latest
-      - docker-compose up -d
-      - docker ps
-
-integrations:
-  hub:
-    - integrationName: shippable-docker-hub
-      type: docker
+      - docker commit $SHIPPABLE_CONTAINER_NAME
