@@ -45,6 +45,8 @@ function php-fpm() {
               echo 'log_level = notice'
               echo
               echo '[www]'
+              echo 'user = www-data'
+              echo 'group = www-data'
               echo 'listen = [::]:{{PHP_FPM_PORT}}'
               echo 'listen.mode = 0666'
               echo 'listen.owner = www-data'
@@ -72,6 +74,7 @@ function php-fpm() {
               echo 'upload_max_filesize=50M'
               echo 'post_max_size=50M'
               echo 'file_uploads=On'
+
               echo
               echo 'opcache.enable=1'
               echo 'opcache.enable_cli=0'
@@ -107,6 +110,18 @@ function php-fpm() {
 
 
 }
+function redis() {
+
+{
+              echo 'session.gc_maxlifetime=86400'
+              echo 'session.save_handler=redis'
+              echo 'session.save_path="tcp://{{REDIS_UPSTREAM}}?weight=1&timeout=2.5&database=3"'
+} | tee /etc/php7/conf.d/zz-redis-setting.ini
+
+  find /etc/php7 -maxdepth 3 -type f -exec sed -i -e 's|{{REDIS_UPSTREAM}}|'"${REDIS_UPSTREAM}"'|g' {} \;
+
+}
+
 
 function monit() {
 
@@ -147,6 +162,7 @@ function permissions() {
 function run() {
 
   php-fpm
+  if [[ -z $REDIS_UPSTREAM ]]; then echo "OK: Redis is not present so do not activate"; else redis; fi
   monit
   permissions
 

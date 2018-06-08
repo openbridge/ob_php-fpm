@@ -37,6 +37,7 @@ RUN set -x \
       php7-mysqlnd@community \
       php7-opcache@community \
       php7-openssl@community \
+      php7-odbc@community \
       php7-pdo@community \
       php7-pdo_mysql@community \
       php7-pdo_pgsql@community \
@@ -45,6 +46,7 @@ RUN set -x \
       php7-posix@community \
       php7-redis@community \
       php7-session@community \
+      php7-simplexml@community \
       php7-soap@community \
       php7-tokenizer@community \
       php7-xml@community \
@@ -73,10 +75,11 @@ RUN set -x \
 COPY conf/monit/ /etc/monit.d/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY check_wwwdata.sh /usr/bin/check_wwwdata
+COPY check_folder.sh /usr/bin/check_folder
 
 EXPOSE 9000
 
-RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata
+RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata /usr/bin/check_folder
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]
