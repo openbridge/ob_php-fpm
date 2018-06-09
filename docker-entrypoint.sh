@@ -142,9 +142,9 @@ function monit() {
 } | tee /etc/monitrc
 
 # Start monit
-  find "/etc/monit.d" -maxdepth 3 -type f -exec sed -i -e 's|{{APP_DOCROOT}}|'"${APP_DOCROOT}"'|g' {} \;
-  find "/etc/monit.d" -maxdepth 3 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} \;
-  find "/etc/monit.d" -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_FPM_PORT}}|'"${PHP_FPM_PORT}"'|g' {} \;
+  find "/etc/monit.d" -maxdepth 4 -type f -exec sed -i -e 's|{{APP_DOCROOT}}|'"${APP_DOCROOT}"'|g' {} \;
+  find "/etc/monit.d" -maxdepth 4 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} \;
+  find "/etc/monit.d" -maxdepth 4 -type f -exec sed -i -e 's|{{PHP_FPM_PORT}}|'"${PHP_FPM_PORT}"'|g' {} \;
 
   chmod 700 /etc/monitrc
   run="monit -c /etc/monitrc" && bash -c "${run}"
@@ -162,7 +162,7 @@ function permissions() {
 function run() {
 
   php-fpm
-  if [[ -z $REDIS_UPSTREAM ]]; then echo "OK: Redis is not present so do not activate"; else redis; fi
+  #if [[ -z $REDIS_UPSTREAM ]]; then echo "OK: Redis is not present so do not activate"; else redis; fi
   monit
   permissions
 
