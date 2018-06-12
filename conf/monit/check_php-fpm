@@ -3,7 +3,16 @@ check process php-fpm with pidfile "/var/run/php-fpm.pid"
       start program = "/bin/bash -c /usr/sbin/php-fpm7 -g /var/run/php-fpm.pid" with timeout 90 seconds
       stop program = "/bin/bash -c /usr/bin/pkill -INT php-fpm"
       if cpu > 90% for 5 cycles then exec "/bin/bash -c /usr/bin/pkill -INT php-fpm"
-      if failed port {{PHP_FPM_PORT}} for 5 cycles then exec "/bin/bash -c /usr/bin/pkill -INT php-fpm"
+      every 3 cycles
+      if failed port {{PHP_FPM_PORT}}
+        # Send FastCGI packet: version 1 (0x01), cmd FCGI_GET_VALUES (0x09)
+        # padding 8 bytes (0x08), followed by 8xNULLs padding
+        send "\0x01\0x09\0x00\0x00\0x00\0x00\0x08\0x00\0x00\0x00\0x00\0x00\0x00\0x00\0x00\0x00"
+        # Expect FastCGI packet: version 1 (0x01), resp FCGI_GET_VALUES_RESULT (0x0A)
+        expect "\0x01\0x0A"
+        timeout 5 seconds
+      then exec "/bin/bash -c /usr/bin/pkill -INT php-fpm"
+      if failed port {{PHP_FPM_PORT}} for 10 cycles then exec "/bin/bash -c /usr/bin/pkill -INT php-fpm"
 
 check program wwwdata-owner with path /usr/bin/env bash -c "check_wwwdata owner"
       every 3 cycles
