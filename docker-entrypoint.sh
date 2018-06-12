@@ -2,25 +2,26 @@
 
 function php-fpm() {
 
-  # Setting the php-fpm configs
+  # Determine the PHP-FPM runtime environment
    CPU=$(grep -c ^processor /proc/cpuinfo); echo "${CPU}"
    TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
 
    if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; else TOTALCPU="${CPU}"; fi
 
+   # PHP-FPM settings
    if [[ -z $PHP_START_SERVERS ]]; then PHP_START_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_START_SERVERS}"; fi
    if [[ -z $PHP_MIN_SPARE_SERVERS ]]; then PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_MIN_SPARE_SERVERS}"; fi
    if [[ -z $PHP_MAX_SPARE_SERVERS ]]; then PHP_MAX_SPARE_SERVERS="${TOTALCPU}" && echo "${PHP_MAX_SPARE_SERVERS}"; fi
    if [[ -z $PHP_MEMORY_LIMIT ]]; then PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)) && echo "${PHP_MEMORY_LIMIT}"; fi
-   if [[ -z $PHP_OPCACHE_MEMORY_CONSUMPTION ]]; then PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)) && echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"; fi
    if [[ -z $PHP_MAX_CHILDREN ]]; then PHP_MAX_CHILDREN=$(($TOTALCPU * 2)) && echo "${PHP_MAX_CHILDREN}"; fi
 
+   # Opcache settings
    if [[ -z $PHP_OPCACHE_ENABLE ]]; then PHP_OPCACHE_ENABLE=1 && echo "${PHP_OPCACHE_ENABLE}"; fi
-
+   if [[ -z $PHP_OPCACHE_MEMORY_CONSUMPTION ]]; then PHP_OPCACHE_MEMORY_CONSUMPTION=$(($TOTALMEM / 6)) && echo "${PHP_OPCACHE_MEMORY_CONSUMPTION}"; fi
 
    # Set the listening port
    if [[ -z $PHP_FPM_PORT ]]; then echo "PHP-FPM port not set. Default to 9000..." && export PHP_FPM_PORT=9000; else echo "OK, PHP-FPM port is set to $PHP_FPM_PORT"; fi
-   # Set the listening port
+   # Set the document root. This is usually the same as your NGINX docroot
    if [[ -z $APP_DOCROOT ]]; then export APP_DOCROOT=/app && mkdir -p "${APP_DOCROOT}"; fi
 
   {
@@ -126,6 +127,17 @@ function redis() {
 
 }
 
+function install_plugin() {
+
+if [[ ! -d /usr/src/plugins/$NGINX_APP_PLUGIN ]]; then
+  echo "INFO: NGINX_APP_PLUGIN is not located in the plugin directory. Nothing to install..."
+else
+  echo "OK: Installing NGINX_APP_PLUGIN=$NGINX_APP_PLUGIN..."
+  chmod +x /usr/src/plugins/$NGINX_APP_PLUGIN/install
+  runplugin="/usr/src/plugins/$NGINX_APP_PLUGIN/install" && /bin/bash -c "${runplugin}"
+fi
+
+}
 
 function monit() {
 
@@ -157,7 +169,13 @@ function monit() {
 
 function permissions() {
 
-    echo "Setting ownership and permissions on CACHE_PREFIX... "
+    echo "Setting ownership and permissions on APP_ROOT and CACHE_PREFIX... "
+
+    # This assumes you are using the common www-data for your user and group in NGINX and PHP-FPM. If you are using different users this is usually a recipe for error.
+
+    find ${APP_DOCROOT} ! -user www-data -exec /usr/bin/env bash -c "chown www-data:www-data {}" \;
+    find ${APP_DOCROOT} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {}" \;
+    find ${APP_DOCROOT} ! -perm 644 -type f -exec /usr/bin/env bash -c "chmod 644 {}" \;
     find ${CACHE_PREFIX} ! -perm 755 -type d -exec /usr/bin/env bash -c "chmod 755 {}" \;
     find ${CACHE_PREFIX} ! -perm 755 -type f -exec /usr/bin/env bash -c "chmod 755 {}" \;
 
@@ -168,6 +186,7 @@ function run() {
   php-fpm
   if [[ -z $REDIS_UPSTREAM ]]; then echo "OK: Redis is not present so we will not activate it"; else redis; fi
   monit
+  if [[ ! -z $NGINX_APP_PLUGIN ]]; then install_plugin else echo "OK: No plugins will be activated"; fi
   permissions
 
   echo "OK: All processes have completed. Service is ready..."
