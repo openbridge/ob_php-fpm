@@ -23,11 +23,11 @@ check program wwwdata-permissions with path /usr/bin/env bash -c "check_wwwdata 
       if status != 0 then exec "/usr/bin/env bash -c 'find {{APP_DOCROOT}} -type d -exec chmod 755 {} \; && find {{APP_DOCROOT}} -type f -exec chmod 644 {} \;'"
 
 check directory cache-permissions with path {{CACHE_PREFIX}}
-      every 3 cycles
+      every 20 cycles
       if failed permission 755 then exec "/usr/bin/env bash -c 'find {{CACHE_PREFIX}} -type d -exec chmod 755 {} \;'"
 
 check directory cache-owner with path {{CACHE_PREFIX}}
-      every 3 cycles
+      every 20 cycles
       if failed uid www-data then exec "/usr/bin/env bash -c 'find {{CACHE_PREFIX}} -type d -exec chown www-data:www-data {} \; && find {{CACHE_PREFIX}} -type f -exec chown www-data:www-data {} \;'"
 
 check program cache-size with path /usr/bin/env bash -c "check_folder {{CACHE_PREFIX}} 500"
