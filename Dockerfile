@@ -1,4 +1,4 @@
-FROM alpine:edge
+FROM alpine:3.8
 MAINTAINER Thomas Spicer (thomas@openbridge.com)
 
 ENV VAR_PREFIX=/var/run
@@ -10,12 +10,11 @@ RUN set -x \
   && addgroup -g 82 -S www-data \
   && adduser -u 82 -D -S -h /var/cache/php-fpm -s /sbin/nologin -G www-data www-data \
   && apk add --no-cache --virtual .build-deps \
-      wget@community \
-      linux-headers@community \
-      curl@community \
-      unzip@community \
-  && echo '@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories \
-  && echo '@community http://nl.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories \
+      wget \
+      linux-headers \
+      curl \
+      unzip \
+  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.8/community' >> /etc/apk/repositories \
   && apk add --no-cache --update \
       php7@community \
       php7-dev@community \
@@ -36,7 +35,6 @@ RUN set -x \
       php7-mysqli@community \
       php7-mysqlnd@community \
       php7-opcache@community \
-      php7-openssl@community \
       php7-odbc@community \
       php7-pdo@community \
       php7-pdo_mysql@community \
@@ -56,15 +54,15 @@ RUN set -x \
       php7-zip@community \
       php7-zlib@community \
       mysql-client\
-      curl@community \
-      monit@community \
-      bash@community \
-      xz@community \
-      icu-libs@community \
-      ca-certificates@community \
-      openssl@community \
-      libxml2-dev@community \
-      tar@community \
+      curl \
+      monit \
+      bash \
+      xz \
+      libressl \
+      icu-libs \
+      ca-certificates \
+      libxml2-dev \
+      tar \
   && mkdir -p /var/run \
   && mkdir -p ${LOG_PREFIX} \
   && rm -rf /tmp/* \

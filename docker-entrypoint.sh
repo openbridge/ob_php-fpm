@@ -46,7 +46,7 @@ function php-fpm() {
   {
               echo '[global]'
               echo 'daemonize = no'
-              echo 'log_level = notice'
+              echo 'log_level = error'
               echo
               echo '[www]'
               echo 'user = www-data'
@@ -55,9 +55,9 @@ function php-fpm() {
               echo 'listen.mode = 0666'
               echo 'listen.owner = www-data'
               echo 'listen.group = www-data'
-              echo 'pm = dynamic'
+              echo 'pm = static'
               echo 'pm.max_children = {{PHP_MAX_CHILDREN}}'
-              echo 'pm.max_requests = 500'
+              echo 'pm.max_requests = 1000'
               echo 'pm.start_servers = {{PHP_START_SERVERS}}'
               echo 'pm.min_spare_servers = {{PHP_MIN_SPARE_SERVERS}}'
               echo 'pm.max_spare_servers = {{PHP_MAX_SPARE_SERVERS}}'
