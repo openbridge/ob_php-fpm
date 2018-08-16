@@ -74,10 +74,10 @@ The PHP and cache settings are a function of the available system resources. Thi
 
 ```bash
 # Setting the php-fpm configs
- CPU=$(grep -c ^processor /proc/cpuinfo); echo "${TOTALCPU}"
+ CPU=$(grep -c ^processor /proc/cpuinfo); echo "${CPU}"
  TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
 
- if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; fi
+ if [[ "$CPU" -le "2" ]]; then TOTALCPU=2; else TOTALCPU="${CPU}"; fi
 
  if [[ -z $PHP_START_SERVERS ]]; then PHP_START_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_START_SERVERS}"; fi
  if [[ -z  $PHP_MIN_SPARE_SERVERS ]]; then PHP_MIN_SPARE_SERVERS=$(($TOTALCPU / 2)) && echo "${PHP_MIN_SPARE_SERVERS}"; fi
