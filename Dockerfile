@@ -50,6 +50,7 @@ RUN set -x \
       php7-xml@community \
       php7-xmlreader@community \
       php7-xmlwriter@community \
+      php7-simplexml@community \
       php7-zip@community \
       php7-zlib@community \
       mysql-client\

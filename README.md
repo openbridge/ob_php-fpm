@@ -76,6 +76,7 @@ The PHP and cache settings are a function of the available system resources. Thi
 
 ```bash
 # Determine the PHP-FPM runtime environment
+
  CPU=$(grep -c ^processor /proc/cpuinfo); echo "${CPU}"
  TOTALMEM=$(free -m | awk '/^Mem:/{print $2}'); echo "${TOTALMEM}"
 
@@ -211,7 +212,7 @@ Logs are sent to stdout and stderr PHP-FPM.
 You will likely want to dispatch these logs to a service like Amazon Cloudwatch. This will allow you to setup alerts and triggers to perform tasks based on container activity.
 
 # Monitoring
-Services in the container are monitored via Monit. One thing to note is that if Monit detects a problem with Nginx it will issue a `STOP` command. THis will shutdown your container because the image uses `CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]`. If you are using `--restart always` in your docker run command the server will automatically restart.
+Services in the container are monitored via Monit. One thing to note is that if Monit detects a problem with PHP-FPM it will issue a `STOP` command. This will shutdown your container because the image uses `CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]`. If you are using `--restart always` in your docker run command the server will automatically restart.
 
 The server will also monitor and self-correct any permissions issues it detects:
 
