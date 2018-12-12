@@ -210,7 +210,7 @@ function run() {
   if [[ -z $REDIS_UPSTREAM ]]; then echo "OK: Redis is not present so we will not activate it"; else redis; fi
   monit
   if [[ ! -z $NGINX_APP_PLUGIN ]]; then install_plugin else echo "OK: No plugins will be activated"; fi
-  permissions
+  #permissions
   echo "OK: All processes have completed. Service is ready..."
 }
 
