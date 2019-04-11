@@ -274,7 +274,7 @@ PHP
 * https://serversforhackers.com/video/php-fpm-process-management
 * https://devcenter.heroku.com/articles/php-concurrency
 
-The image is based on the office NGINX docker image:
+The image is based on the official PHP docker image:
 * https://github.com/docker-library/php
 
 # License
