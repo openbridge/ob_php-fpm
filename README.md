@@ -13,7 +13,7 @@ This is a Docker image creates a high performance, optimized container for PHP-F
 # Versioning
 | Docker Tag | Git Hub Release | PHP Version | Alpine Version |
 |-----|-------|-----|--------|
-| latest | develop | 7.2.x | 3.8 |
+| latest | develop | 7.2.x | 3.9 |
 
 # Build
 ```
