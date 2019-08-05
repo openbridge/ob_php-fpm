@@ -1,4 +1,4 @@
-FROM alpine:3.9
+FROM alpine:3.10
 MAINTAINER Thomas Spicer (thomas@openbridge.com)
 
 ENV VAR_PREFIX=/var/run
@@ -14,7 +14,7 @@ RUN set -x \
       linux-headers \
       curl \
       unzip \
-  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.9/community' >> /etc/apk/repositories \
+  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.10/community' >> /etc/apk/repositories \
   && apk add --no-cache --update \
       php7@community \
       php7-dev@community \
@@ -58,7 +58,7 @@ RUN set -x \
       monit \
       bash \
       xz \
-      libressl \
+      openssl \
       icu-libs \
       ca-certificates \
       libxml2-dev \
