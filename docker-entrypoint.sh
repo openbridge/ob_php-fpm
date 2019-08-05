@@ -145,6 +145,8 @@ if [[ ! -d /usr/src/plugins/$NGINX_APP_PLUGIN ]]; then
   echo "INFO: NGINX_APP_PLUGIN is not located in the plugin directory. Nothing to install..."
 else
   echo "OK: Installing NGINX_APP_PLUGIN=$NGINX_APP_PLUGIN..."
+  #Give other services a chance to start up...
+  sleep 10
   chmod +x /usr/src/plugins/$NGINX_APP_PLUGIN/install
   runplugin="/usr/src/plugins/$NGINX_APP_PLUGIN/install" && /bin/bash -c "${runplugin}"
 fi
@@ -209,7 +211,7 @@ function run() {
   php-fpm
   if [[ -z $REDIS_UPSTREAM ]]; then echo "OK: Redis is not present so we will not activate it"; else redis; fi
   monit
-  if [[ ! -z $NGINX_APP_PLUGIN ]]; then install_plugin else echo "OK: No plugins will be activated"; fi
+  if [[ ! -z $NGINX_APP_PLUGIN ]]; then install_plugin; else echo "OK: No plugins will be activated"; fi
   #permissions
   echo "OK: All processes have completed. Service is ready..."
 }
