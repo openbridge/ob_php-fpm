@@ -14,46 +14,45 @@ RUN set -x \
       linux-headers \
       curl \
       unzip \
-      openssl-dev \
-  && echo ' http://dl-cdn.alpinelinux.org/alpine/v3.9/community' >> /etc/apk/repositories \
+  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.10/community' >> /etc/apk/repositories \
   && apk add --no-cache --update \
-      php7 \
-      php7-dev \
-      php7-bcmath \
-      php7-dom \
-      php7-common \
-      php7-ctype \
-      php7-cli \
-      php7-curl \
-      php7-fileinfo \
-      php7-fpm \
-      php7-gettext \
-      php7-gd \
-      php7-iconv \
-      php7-json \
-      php7-mbstring \
-      php7-mcrypt \
-      php7-mysqli \
-      php7-mysqlnd \
-      php7-opcache \
-      php7-odbc \
-      php7-pdo \
-      php7-pdo_mysql \
-      php7-pdo_pgsql \
-      php7-pdo_sqlite \
-      php7-phar \
-      php7-posix \
-      php7-redis \
-      php7-session \
-      php7-simplexml \
-      php7-soap \
-      php7-tokenizer \
-      php7-xml \
-      php7-xmlreader \
-      php7-xmlwriter \
-      php7-simplexml \
-      php7-zip \
-      php7-zlib \
+      php7@community \
+      php7-dev@community \
+      php7-bcmath@community \
+      php7-dom@community \
+      php7-common@community \
+      php7-ctype@community \
+      php7-cli@community \
+      php7-curl@community \
+      php7-fileinfo@community \
+      php7-fpm@community \
+      php7-gettext@community \
+      php7-gd@community \
+      php7-iconv@community \
+      php7-json@community \
+      php7-mbstring@community \
+      php7-mcrypt@community \
+      php7-mysqli@community \
+      php7-mysqlnd@community \
+      php7-opcache@community \
+      php7-odbc@community \
+      php7-pdo@community \
+      php7-pdo_mysql@community \
+      php7-pdo_pgsql@community \
+      php7-pdo_sqlite@community \
+      php7-phar@community \
+      php7-posix@community \
+      php7-redis@community \
+      php7-session@community \
+      php7-simplexml@community \
+      php7-soap@community \
+      php7-tokenizer@community \
+      php7-xml@community \
+      php7-xmlreader@community \
+      php7-xmlwriter@community \
+      php7-simplexml@community \
+      php7-zip@community \
+      php7-zlib@community \
       mysql-client\
       curl \
       monit \
