@@ -68,7 +68,7 @@ function php-fpm() {
   } | tee /etc/php7/php-fpm.d/zz-docker.conf
 
   {
-        echo 'max_executionn_time=300'
+        echo 'max_execution_time=300'
         echo 'memory_limit={{PHP_MEMORY_LIMIT}}M'
         echo 'error_reporting=1'
         echo 'display_errors=0'
