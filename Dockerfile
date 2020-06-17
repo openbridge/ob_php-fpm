@@ -14,7 +14,7 @@ RUN set -x \
       linux-headers \
       curl \
       unzip \
-  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.10/community' >> /etc/apk/repositories \
+  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.11/community' >> /etc/apk/repositories \
   && apk add --no-cache --update \
       php7@community \
       php7-dev@community \
