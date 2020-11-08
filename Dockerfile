@@ -1,5 +1,5 @@
 FROM alpine:3.11
-MAINTAINER Thomas Spicer (thomas@openbridge.com)
+LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
 
 ENV VAR_PREFIX=/var/run
 ENV LOG_PREFIX=/var/log/php-fpm
