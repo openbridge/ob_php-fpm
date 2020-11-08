@@ -63,6 +63,10 @@ PHP_START_SERVERS=16
 PHP_MIN_SPARE_SERVERS=8
 PHP_MAX_SPARE_SERVERS=16
 PHP_MEMORY_LIMIT=256
+PHP_POST_MAX_SIZE=50
+PHP_UPLOAD_MAX_FILESIZE=50
+PHP_MAX_INPUT_VARS=1000
+PHP_MAX_EXECUTION_TIME=300
 PHP_OPCACHE_ENABLE=1
 PHP_OPCACHE_MEMORY_CONSUMPTION=96
 PHP_MAX_CHILDREN=16
@@ -88,6 +92,10 @@ The PHP and cache settings are a function of the available system resources. Thi
  if [[ -z $PHP_MAX_SPARE_SERVERS ]]; then PHP_MAX_SPARE_SERVERS="${TOTALCPU}" && echo "${PHP_MAX_SPARE_SERVERS}"; fi
  if [[ -z $PHP_MEMORY_LIMIT ]]; then PHP_MEMORY_LIMIT=$(($TOTALMEM / 2)) && echo "${PHP_MEMORY_LIMIT}"; fi
  if [[ -z $PHP_MAX_CHILDREN ]]; then PHP_MAX_CHILDREN=$(($TOTALCPU * 2)) && echo "${PHP_MAX_CHILDREN}"; fi
+ if [[ -z $PHP_POST_MAX_SIZE ]]; then PHP_POST_MAX_SIZE="50"; else PHP_POST_MAX_SIZE="${PHP_POST_MAX_SIZE}" fi
+ if [[ -z $PHP_UPLOAD_MAX_FILESIZE ]]; then PHP_UPLOAD_MAX_FILESIZE="50"; else PHP_UPLOAD_MAX_FILESIZE="${PHP_UPLOAD_MAX_FILESIZE}" fi
+ if [[ -z $PHP_MAX_INPUT_VARS ]]; then PHP_MAX_INPUT_VARS="1000"; else PHP_MAX_INPUT_VARS="${PHP_MAX_INPUT_VARS}" fi
+ if [[ -z $PHP_MAX_EXECUTION_TIME ]]; then PHP_MAX_EXECUTION_TIME="300"; else PHP_MAX_EXECUTION_TIME="${PHP_MAX_EXECUTION_TIME}" fi
 
  # Opcache settings
  if [[ -z $PHP_OPCACHE_ENABLE ]]; then PHP_OPCACHE_ENABLE=1 && echo "${PHP_OPCACHE_ENABLE}"; fi
@@ -144,7 +152,7 @@ The following represents the structure of the PHP configs used in this image:
 } | tee /etc/php7/php-fpm.d/zz-docker.conf
 
 {
-      echo 'max_executionn_time=300'
+      echo 'max_execution_time={{PHP_MAX_EXECUTION_TIME}}'
       echo 'memory_limit={{PHP_MEMORY_LIMIT}}M'
       echo 'error_reporting=1'
       echo 'display_errors=0'
@@ -155,9 +163,11 @@ The following represents the structure of the PHP configs used in this image:
       echo 'date.timezone=UTC'
       echo 'short_open_tag=Off'
       echo 'session.auto_start=Off'
-      echo 'upload_max_filesize=50M'
-      echo 'post_max_size=50M'
+      echo 'upload_max_filesize={{PHP_UPLOAD_MAX_FILESIZE}}M'
+      echo 'post_max_size={{PHP_POST_MAX_SIZE}}M'
       echo 'file_uploads=On'
+      echo 'file_uploads=On'
+      echo 'max_input_vars={{PHP_MAX_INPUT_VARS}}'
 
       echo
       echo 'opcache.enable={{PHP_OPCACHE_ENABLE}}'
