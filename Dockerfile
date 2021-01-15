@@ -1,6 +1,7 @@
-ARG ALPINE_VERSION
+ARG ALPINE_VERSION=3.11
 FROM alpine:${ALPINE_VERSION}
 LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
+ARG ALPINE_VERSION
 
 ENV VAR_PREFIX=/var/run
 ENV LOG_PREFIX=/var/log/php-fpm

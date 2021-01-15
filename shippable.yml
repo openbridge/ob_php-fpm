@@ -7,9 +7,12 @@ env:
   - PHP_VERSION=7.4 TAG=latest
 
 pre_ci:
-  - export ALPINE_VERSION="3.13"
-  - if [ "$PHP_VERSION" == "7.3" ]; then export ALPINE_VERSION="3.11"; fi
-  - docker build --build-arg ALPINE_VERSION=$ALPINE_VERSION -t $SHIPPABLE_CONTAINER_NAME:$TAG
+  - |
+    if [ "$PHP_VERSION" == "7.4" ]; then
+        docker build --build-arg ALPINE_VERSION=3.13 -t $SHIPPABLE_CONTAINER_NAME:$TAG
+    else
+        docker build -t $SHIPPABLE_CONTAINER_NAME:$TAG
+    fi
 
 build:
   post_ci:
