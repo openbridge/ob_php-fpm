@@ -1,5 +1,7 @@
-FROM alpine:3.10
-MAINTAINER Thomas Spicer (thomas@openbridge.com)
+ARG ALPINE_VERSION=3.11
+FROM alpine:${ALPINE_VERSION}
+LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
+ARG ALPINE_VERSION
 
 ENV VAR_PREFIX=/var/run
 ENV LOG_PREFIX=/var/log/php-fpm
@@ -14,7 +16,7 @@ RUN set -x \
       linux-headers \
       curl \
       unzip \
-  && echo '@community http://dl-cdn.alpinelinux.org/alpine/v3.10/community' >> /etc/apk/repositories \
+  && echo "@community http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community" >> /etc/apk/repositories \
   && apk add --no-cache --update \
       php7@community \
       php7-dev@community \
