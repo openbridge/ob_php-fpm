@@ -1,4 +1,4 @@
-ARG ALPINE_VERSION=3.11
+ARG ALPINE_VERSION=3.14
 FROM alpine:${ALPINE_VERSION}
 LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
 ARG ALPINE_VERSION
@@ -9,14 +9,14 @@ ENV TEMP_PREFIX=/tmp
 ENV CACHE_PREFIX=/var/cache
 
 RUN set -x \
-  && addgroup -g 82 -S www-data \
+  #&& addgroup -g 82 -S www-data \
   && adduser -u 82 -D -S -h /var/cache/php-fpm -s /sbin/nologin -G www-data www-data \
   && apk add --no-cache --virtual .build-deps \
       wget \
       linux-headers \
       curl \
       unzip \
-  && echo "@community http://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community" >> /etc/apk/repositories \
+  && echo "@community http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories \
   && apk add --no-cache --update \
       php7@community \
       php7-dev@community \
@@ -55,6 +55,8 @@ RUN set -x \
       php7-simplexml@community \
       php7-zip@community \
       php7-zlib@community \
+      php7-exif@community \
+      php7-pecl-imagick@community \
       mysql-client\
       curl \
       monit \
