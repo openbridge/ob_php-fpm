@@ -1,89 +1,71 @@
-ARG ALPINE_VERSION=3.14
-FROM alpine:${ALPINE_VERSION}
-LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
-ARG ALPINE_VERSION
+# Use the official PHP image with PHP 8.2 and FPM
+FROM php:8.2-fpm-alpine
 
-ENV VAR_PREFIX=/var/run
+LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
+
+# Set environment variables
 ENV LOG_PREFIX=/var/log/php-fpm
 ENV TEMP_PREFIX=/tmp
 ENV CACHE_PREFIX=/var/cache
 
-RUN set -x \
-  #&& addgroup -g 82 -S www-data \
-  && adduser -u 82 -D -S -h /var/cache/php-fpm -s /sbin/nologin -G www-data www-data \
-  && apk add --no-cache --virtual .build-deps \
-      wget \
-      linux-headers \
-      curl \
-      unzip \
-  && echo "@community http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories \
-  && apk add --no-cache --update \
-      php7@community \
-      php7-dev@community \
-      php7-bcmath@community \
-      php7-dom@community \
-      php7-common@community \
-      php7-ctype@community \
-      php7-cli@community \
-      php7-curl@community \
-      php7-fileinfo@community \
-      php7-fpm@community \
-      php7-gettext@community \
-      php7-gd@community \
-      php7-iconv@community \
-      php7-json@community \
-      php7-mbstring@community \
-      php7-mcrypt@community \
-      php7-mysqli@community \
-      php7-mysqlnd@community \
-      php7-opcache@community \
-      php7-odbc@community \
-      php7-pdo@community \
-      php7-pdo_mysql@community \
-      php7-pdo_pgsql@community \
-      php7-pdo_sqlite@community \
-      php7-phar@community \
-      php7-posix@community \
-      php7-redis@community \
-      php7-session@community \
-      php7-simplexml@community \
-      php7-soap@community \
-      php7-tokenizer@community \
-      php7-xml@community \
-      php7-xmlreader@community \
-      php7-xmlwriter@community \
-      php7-simplexml@community \
-      php7-zip@community \
-      php7-zlib@community \
-      php7-exif@community \
-      php7-pecl-imagick@community \
-      mysql-client\
-      curl \
-      monit \
-      bash \
-      xz \
-      openssl \
-      icu-libs \
-      ca-certificates \
-      libxml2-dev \
-      tar \
-  && mkdir -p /var/run \
+# Create necessary directories and logs, and adjust permissions
+RUN set -ex \
+  && mkdir -p /var/run/php-fpm \
   && mkdir -p ${LOG_PREFIX} \
-  && rm -rf /tmp/* \
-  && rm -rf /var/cache/apk/* \
   && touch ${LOG_PREFIX}/access.log \
   && touch ${LOG_PREFIX}/error.log \
   && ln -sf /dev/stdout ${LOG_PREFIX}/access.log \
   && ln -sf /dev/stderr ${LOG_PREFIX}/error.log
 
+# Install additional dependencies and PHP extensions
+RUN set -ex \
+  && apk add --no-cache \
+      bash \
+      icu-libs \
+      libzip \
+      imagemagick \
+      monit \
+      openssl \
+      ca-certificates \
+  && apk add --no-cache --virtual .build-deps \
+      $PHPIZE_DEPS \
+      icu-dev \
+      freetype-dev \
+      imagemagick-dev \
+      libzip-dev \
+      libpng-dev \
+      libjpeg-turbo-dev \ 
+  # Configure and install PHP extensions
+  && docker-php-ext-configure gd \
+      --with-freetype=/usr/include/ \
+      --with-jpeg=/usr/include/ \
+  && docker-php-ext-install -j"$(nproc)" \
+      bcmath \
+      exif \
+      gd \
+      intl \
+      pdo_mysql \
+      mysqli \
+      zip \
+  && pecl install imagick-3.6.0 \
+  && pecl install redis \ 
+  && docker-php-ext-enable imagick \
+  && docker-php-ext-enable redis \ 
+  && apk del .build-deps \
+  && rm -rf /tmp/* /var/cache/apk/*
+
+# Copy configuration files and scripts
 COPY conf/monit/ /etc/monit.d/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY check_wwwdata.sh /usr/bin/check_wwwdata
 COPY check_folder.sh /usr/bin/check_folder
 
+# Expose port 9000
 EXPOSE 9000
 
+# Make scripts executable
 RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata /usr/bin/check_folder
 
+# Set the entrypoint and default command
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["php-fpm7", "-g", "/var/run/php-fpm.pid"]
+CMD ["php-fpm"]
