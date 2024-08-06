@@ -1,5 +1,3 @@
-![Image of PHP](https://cdn.openbridge.com/assets/images/openbridge-php-small.png)
-
 # Overview
 
 This is a Docker image creates a high performance, optimized container for PHP-FPM. The image also includes configuration enhancements for;
