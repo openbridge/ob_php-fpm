@@ -81,6 +81,7 @@ EXPOSE 9000
 # Make scripts executable
 RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata /usr/bin/check_folder
 
-# Set the entrypoint and default command
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Set the entrypoint script to be run on container start
+ENTRYPOINT ["/usr/bin/env", "bash", "/docker-entrypoint.sh"]
+
 CMD ["php-fpm"]

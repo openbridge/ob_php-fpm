@@ -14,15 +14,7 @@ This is a Docker image creates a high performance, optimized container for PHP-F
 docker build -t openbridge/ob_php-fpm .
 ```
 
-The current default build uses Alpine version `3.11`. However, you can set the Alpine version by passing build arguments.
-
-For example, if you want to use Alpine version `3.13`, set the `--build-arg` with `ALPINE_VERSION` as follows:
-
-```
-docker build -t ob_php-fpm --build-arg ALPINE_VERSION=3.13 .
-```
-
-or pull from Docker Hub which uses `ALPINE_VERSION=3.13` :
+Or pull it:
 ```
 docker pull openbridge/ob_php-fpm
 ```
