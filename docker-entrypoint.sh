@@ -1,318 +1,243 @@
 #!/bin/bash
 #
-# Configures PHP-FPM, Redis, plugins, and sets up monitoring and permissions.
+# Docker Entrypoint for PHP-FPM, Redis, and Monitoring Configuration
 
-# php_fpm: Configures PHP-FPM environment
-#
-# Globals:
-#   PHP_START_SERVERS
-#   PHP_MIN_SPARE_SERVERS
-#   PHP_MAX_SPARE_SERVERS
-#   PHP_MEMORY_LIMIT
-#   PHP_MAX_CHILDREN
-#   PHP_POST_MAX_SIZE
-#   PHP_UPLOAD_MAX_FILESIZE
-#   PHP_MAX_INPUT_VARS
-#   PHP_MAX_EXECUTION_TIME
-#   PHP_OPCACHE_ENABLE
-#   PHP_OPCACHE_MEMORY_CONSUMPTION
-#   PHP_FPM_PORT
-#   APP_DOCROOT
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
-php_fpm() {
-  local cpu mem
+set -euo pipefail
 
-  cpu=$(grep -c ^processor /proc/cpuinfo)
-  printf "%s\n" "${cpu}"
+# Globals and Default Values
+: "${PHP_MAX_EXECUTION_TIME:=300}"
+: "${PHP_FPM_CONF_DIR:=/usr/local/etc}"
+: "${PHP_MEMORY_LIMIT:=128}"  # Changed default to 128M
+: "${PHP_POST_MAX_SIZE:=50}"
+: "${PHP_UPLOAD_MAX_FILESIZE:=50}"
+: "${PHP_OPCACHE_ENABLE:=1}"
+: "${PHP_FPM_UPSTREAM_PORT:=9000}"
+: "${REDIS_UPSTREAM_HOST:=redis}"
+: "${REDIS_UPSTREAM_PORT:=6379}"
+: "${LOG_PREFIX:=/var/log/php-fpm}"
+: "${DEBUG:=0}"                        
 
-  mem=$(free -m | awk '/^Mem:/{print $2}')
-  printf "%s\n" "${mem}"
+# Debug Mode
+if [[ "$DEBUG" == "1" ]]; then
+  set -x
+  echo "DEBUG: Loaded environment variables:"
+  env | grep -E 'PHP_|APP_|CACHE_|REDIS_'
+fi
 
-  local total_cpu=$((cpu > 2 ? cpu : 2))
+# Function: Calculate optimal PHP-FPM settings based on available resources
+calculate_fpm_settings() {
+    # Get total RAM and CPU cores
+    TOTAL_RAM_MB=$(grep MemTotal /proc/meminfo | awk '{print $2 / 1024}')
+    CPU_CORES=$(nproc)
+    
+    echo "INFO: Total RAM: ${TOTAL_RAM_MB}MB"
+    echo "INFO: CPU cores: ${CPU_CORES}"
 
-  PHP_START_SERVERS=${PHP_START_SERVERS:-$((total_cpu / 2))}
-  PHP_MIN_SPARE_SERVERS=${PHP_MIN_SPARE_SERVERS:-$((total_cpu / 2))}
-  PHP_MAX_SPARE_SERVERS=${PHP_MAX_SPARE_SERVERS:-${total_cpu}}
-  PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-$((mem / 2))}
-  PHP_MAX_CHILDREN=${PHP_MAX_CHILDREN:-$((total_cpu * 2))}
-  PHP_POST_MAX_SIZE=${PHP_POST_MAX_SIZE:-50}
-  PHP_UPLOAD_MAX_FILESIZE=${PHP_UPLOAD_MAX_FILESIZE:-50}
-  PHP_MAX_INPUT_VARS=${PHP_MAX_INPUT_VARS:-1000}
-  PHP_MAX_EXECUTION_TIME=${PHP_MAX_EXECUTION_TIME:-300}
+    # Calculate available RAM for PHP processes (30% of total RAM as per your original script)
+    PHP_AVAILABLE_RAM_MB=$(awk "BEGIN {print $TOTAL_RAM_MB * 0.30}")
+    
+    # Use memory limit from environment or calculate based on available RAM
+    if [ -z "${PHP_MEMORY_LIMIT-}" ]; then
+        # Calculate memory limit as 20% of PHP available RAM
+        PHP_MEMORY_LIMIT=$(awk "BEGIN {printf \"%.0f\", $PHP_AVAILABLE_RAM_MB * 0.20}")
+        # Ensure memory limit is between 128MB and 1024MB
+        if [ "$(awk "BEGIN {print ($PHP_MEMORY_LIMIT < 128)}")" -eq 1 ]; then
+            PHP_MEMORY_LIMIT=128
+        elif [ "$(awk "BEGIN {print ($PHP_MEMORY_LIMIT > 1024)}")" -eq 1 ]; then
+            PHP_MEMORY_LIMIT=1024
+        fi
+    fi
 
-  PHP_OPCACHE_ENABLE=${PHP_OPCACHE_ENABLE:-1}
-  PHP_OPCACHE_MEMORY_CONSUMPTION=${PHP_OPCACHE_MEMORY_CONSUMPTION:-$((mem / 6))}
+    # Calculate max children based on available RAM and memory limit
+    PHP_MAX_CHILDREN=$(awk "BEGIN {print int($PHP_AVAILABLE_RAM_MB / $PHP_MEMORY_LIMIT)}")
+    
+    # Ensure minimum of 2 children even on very constrained systems
+    if [ "$PHP_MAX_CHILDREN" -lt 2 ]; then
+        PHP_MAX_CHILDREN=2
+    fi
 
-  PHP_FPM_PORT=${PHP_FPM_PORT:-9000}
-  APP_DOCROOT=${APP_DOCROOT:-/app}
+    # Calculate other FPM settings with safe minimums
+    START_SERVERS=$(( (PHP_MAX_CHILDREN + 1) / 2 ))
+    if [ "$START_SERVERS" -lt 2 ]; then
+        START_SERVERS=2
+    fi
 
-  mkdir -p "${APP_DOCROOT}"
+    MIN_SPARE_SERVERS=$(( START_SERVERS - 1 ))
+    if [ "$MIN_SPARE_SERVERS" -lt 1 ]; then
+        MIN_SPARE_SERVERS=1
+    fi
 
-  create_config_files
-  set_configurations
+    MAX_SPARE_SERVERS=$((PHP_MAX_CHILDREN - 1))
+    if [ "$MAX_SPARE_SERVERS" -le "$MIN_SPARE_SERVERS" ]; then
+        MAX_SPARE_SERVERS=$((MIN_SPARE_SERVERS + 1))
+    fi
+    
+    # Calculate max requests before worker restart
+    MAX_REQUESTS=$((PHP_MAX_CHILDREN * 100))
+    if [ "$MAX_REQUESTS" -gt 1000 ]; then
+        MAX_REQUESTS=1000
+    fi
+
+    # Calculate OPcache memory (5% of PHP available RAM)
+    OPCACHE_MEMORY_MB=$(awk "BEGIN {print int($PHP_AVAILABLE_RAM_MB * 0.05)}")
+    if [ "$OPCACHE_MEMORY_MB" -lt 64 ]; then
+        OPCACHE_MEMORY_MB=64
+    elif [ "$OPCACHE_MEMORY_MB" -gt 512 ]; then
+        OPCACHE_MEMORY_MB=512
+    fi
+
+    echo "INFO: Configured settings:"
+    echo "- Memory limit: ${PHP_MEMORY_LIMIT}MB"
+    echo "- PHP max children: $PHP_MAX_CHILDREN"
+    echo "- Start servers: $START_SERVERS"
+    echo "- Min spare servers: $MIN_SPARE_SERVERS"
+    echo "- Max spare servers: $MAX_SPARE_SERVERS"
+    echo "- Max requests: $MAX_REQUESTS"
+    echo "- OPcache memory: ${OPCACHE_MEMORY_MB}MB"
 }
 
-# create_config_files: Creates configuration files for PHP-FPM
-#
-# Globals:
-#   CACHE_PREFIX
-#   PHP_FPM_PORT
-#   PHP_START_SERVERS
-#   PHP_MIN_SPARE_SERVERS
-#   PHP_MAX_SPARE_SERVERS
-#   PHP_MEMORY_LIMIT
-#   PHP_OPCACHE_ENABLE
-#   PHP_OPCACHE_MEMORY_CONSUMPTION
-#   PHP_MAX_CHILDREN
-#   LOG_PREFIX
-#   PHP_POST_MAX_SIZE
-#   PHP_UPLOAD_MAX_FILESIZE
-#   PHP_MAX_INPUT_VARS
-#   PHP_MAX_EXECUTION_TIME
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
-create_config_files() {
-  {
-    echo '[global]'
-    echo 'include=/usr/local/etc/php-fpm.d/*.conf'
-  } > /usr/local/etc/php-fpm.conf
-
-  {
-    echo '[global]'
-    echo 'error_log = {{LOG_PREFIX}}/error.log'
-    echo
-    echo '[www]'
-    echo 'access.log = {{LOG_PREFIX}}/access.log'
-    echo
-    echo 'clear_env = no'
-    echo 'catch_workers_output = yes'
-  } > /usr/local/etc/php-fpm.d/docker.conf
-
-  {
-    echo '[global]'
-    echo 'daemonize = no'
-    echo 'log_level = error'
-    echo
-    echo '[www]'
-    echo 'user = www-data'
-    echo 'group = www-data'
-    echo 'listen = [::]:{{PHP_FPM_PORT}}'
-    echo 'listen.mode = 0666'
-    echo 'listen.owner = www-data'
-    echo 'listen.group = www-data'
-    echo 'pm = static'
-    echo 'pm.max_children = {{PHP_MAX_CHILDREN}}'
-    echo 'pm.max_requests = 1000'
-    echo 'pm.start_servers = {{PHP_START_SERVERS}}'
-    echo 'pm.min_spare_servers = {{PHP_MIN_SPARE_SERVERS}}'
-    echo 'pm.max_spare_servers = {{PHP_MAX_SPARE_SERVERS}}'
-  } > /usr/local/etc/php-fpm.d/zz-docker.conf
-
-  {
-    echo 'max_execution_time={{PHP_MAX_EXECUTION_TIME}}'
-    echo 'memory_limit={{PHP_MEMORY_LIMIT}}M'
-    echo 'error_reporting=1'
-    echo 'display_errors=0'
-    echo 'log_errors=1'
-    echo 'user_ini.filename='
-    echo 'realpath_cache_size=2M'
-    echo 'cgi.check_shebang_line=0'
-    echo 'date.timezone=UTC'
-    echo 'short_open_tag=Off'
-    echo 'session.auto_start=Off'
-    echo 'upload_max_filesize={{PHP_UPLOAD_MAX_FILESIZE}}M'
-    echo 'post_max_size={{PHP_POST_MAX_SIZE}}M'
-    echo 'file_uploads=On'
-    echo 'max_input_vars={{PHP_MAX_INPUT_VARS}}'
-    echo
-    echo 'opcache.enable={{PHP_OPCACHE_ENABLE}}'
-    echo 'opcache.enable_cli=0'
-    echo 'opcache.save_comments=1'
-    echo 'opcache.interned_strings_buffer=8'
-    echo 'opcache.fast_shutdown=1'
-    echo 'opcache.validate_timestamps=1'
-    echo 'opcache.revalidate_freq=2'
-    echo 'opcache.use_cwd=1'
-    echo 'opcache.max_accelerated_files=100000'
-    echo 'opcache.max_wasted_percentage=5'
-    echo 'opcache.memory_consumption={{PHP_OPCACHE_MEMORY_CONSUMPTION}}M'
-    echo 'opcache.consistency_checks=0'
-    echo 'opcache.huge_code_pages=1'
-    echo
-    echo ';opcache.file_cache="{{CACHE_PREFIX}}/fastcgi/.opcache"'
-    echo ';opcache.file_cache_only=1'
-    echo ';opcache.file_cache_consistency_checks=1'
-  } > /usr/local/etc/php/conf.d/50-setting.ini
-
-  mkdir -p "${CACHE_PREFIX}/fastcgi/"
-
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_FPM_PORT}}|'"${PHP_FPM_PORT}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_START_SERVERS}}|'"${PHP_START_SERVERS}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MIN_SPARE_SERVERS}}|'"${PHP_MIN_SPARE_SERVERS}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MAX_SPARE_SERVERS}}|'"${PHP_MAX_SPARE_SERVERS}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MEMORY_LIMIT}}|'"${PHP_MEMORY_LIMIT}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_OPCACHE_ENABLE}}|'"${PHP_OPCACHE_ENABLE}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_OPCACHE_MEMORY_CONSUMPTION}}|'"${PHP_OPCACHE_MEMORY_CONSUMPTION}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MAX_CHILDREN}}|'"${PHP_MAX_CHILDREN}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{LOG_PREFIX}}|'"${LOG_PREFIX}"'|g' {} +
   find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_POST_MAX_SIZE}}|'"${PHP_POST_MAX_SIZE}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_UPLOAD_MAX_FILESIZE}}|'"${PHP_UPLOAD_MAX_FILESIZE}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MAX_INPUT_VARS}}|'"${PHP_MAX_INPUT_VARS}"'|g' {} +
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_MAX_EXECUTION_TIME}}|'"${PHP_MAX_EXECUTION_TIME}"'|g' {} +
+# Function: Configure PHP-FPM
+php_fpm() {
+    echo "INFO: Configuring PHP-FPM..."
+    calculate_fpm_settings
+    
+    mkdir -p "${APP_DOCROOT}" "${LOG_PREFIX}" "${CACHE_PREFIX}/fastcgi"
+
+    # Create PHP-FPM Configuration Files
+    cat <<EOF > "${PHP_FPM_CONF_DIR}/php-fpm.conf"
+[global]
+include=${PHP_FPM_CONF_DIR}/php-fpm.d/*.conf
+EOF
+
+    cat <<EOF > "${PHP_FPM_CONF_DIR}/php-fpm.d/docker.conf"
+[global]
+error_log = ${LOG_PREFIX}/error.log
+log_level = error
+emergency_restart_threshold = 10
+emergency_restart_interval = 1m
+process_control_timeout = 10s
+
+[www]
+access.log = ${LOG_PREFIX}/access.log
+clear_env = no
+catch_workers_output = yes
+request_terminate_timeout = ${PHP_MAX_EXECUTION_TIME}s
+EOF
+
+    cat <<EOF > "${PHP_FPM_CONF_DIR}/php-fpm.d/zz-docker.conf"
+[global]
+daemonize = no
+
+[www]
+user = www-data
+group = www-data
+listen = [::]:${PHP_FPM_UPSTREAM_PORT}
+listen.mode = 0660
+listen.owner = www-data
+listen.group = www-data
+pm = dynamic
+pm.max_children = ${PHP_MAX_CHILDREN}
+pm.start_servers = ${START_SERVERS}
+pm.min_spare_servers = ${MIN_SPARE_SERVERS}
+pm.max_spare_servers = ${MAX_SPARE_SERVERS}
+pm.max_requests = ${MAX_REQUESTS}
+pm.status_path = /status
+EOF
+
+    cat <<EOF > "${PHP_FPM_CONF_DIR}/php/conf.d/50-setting.ini"
+max_execution_time=${PHP_MAX_EXECUTION_TIME}
+memory_limit=${PHP_MEMORY_LIMIT}M
+upload_max_filesize=${PHP_UPLOAD_MAX_FILESIZE}M
+post_max_size=${PHP_POST_MAX_SIZE}M
+file_uploads=On
+max_input_vars=${PHP_MAX_INPUT_VARS:-10000}
+error_reporting=E_ALL & ~E_DEPRECATED & ~E_STRICT
+display_errors=Off
+display_startup_errors=Off
+log_errors=On
+error_log=${LOG_PREFIX}/php_errors.log
+user_ini.filename=
+realpath_cache_size=4M
+realpath_cache_ttl=120
+date.timezone=UTC
+short_open_tag=Off
+session.auto_start=Off
+
+; OpCache settings
+opcache.enable=${PHP_OPCACHE_ENABLE}
+opcache.memory_consumption=${OPCACHE_MEMORY_MB}
+opcache.max_accelerated_files=10000
+opcache.validate_timestamps=1
+opcache.revalidate_freq=2
+opcache.enable_cli=0
+opcache.save_comments=1
+opcache.interned_strings_buffer=16
+opcache.fast_shutdown=1
+opcache.use_cwd=1
+opcache.max_wasted_percentage=5
+opcache.consistency_checks=0
+opcache.huge_code_pages=1
+opcache.file_cache="${CACHE_PREFIX}/fastcgi/.opcache"
+opcache.file_cache_only=1
+opcache.file_cache_consistency_checks=1
+EOF
+
+    echo "INFO: PHP-FPM configured successfully."
 }
 
-# set_configurations: Replaces placeholders with actual environment variables
-#
-# Globals:
-#   None
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
-set_configurations() {
-  local config_path='/usr/local/etc/'
-  local find_expr='s|{{\s*([^}\s]+)\s*}}|${\1}|g'
 
-  find "${config_path}" -maxdepth 3 -type f -exec sed -i -e "${find_expr}" {} +
-}
-
-# redis: Configures PHP connection to Redis
-#
-# Globals:
-#   REDIS_UPSTREAM
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
+# Function: Configure Redis
 redis() {
-  {
-    echo 'session.gc_maxlifetime=86400'
-    echo 'session.save_handler=redis'
-    echo 'session.save_path="tcp://{{REDIS_UPSTREAM}}?weight=1&timeout=2.5&database=3"'
-  } > /usr/local/etc/php/conf.d/zz-redis-setting.ini
-
-  find /usr/local/etc/php/conf.d/ -maxdepth 3 -type f -exec sed -i -e 's|{{REDIS_UPSTREAM}}|'"${REDIS_UPSTREAM}"'|g' {} +
+  if [[ -n "$REDIS_UPSTREAM_HOST" ]]; then
+    echo "INFO: Configuring Redis..."
+    cat <<EOF > "${PHP_FPM_CONF_DIR}/php/conf.d/zz-redis-setting.ini"
+session.gc_maxlifetime=86400
+session.save_handler=redis
+session.save_path="tcp://$REDIS_UPSTREAM_HOST:$REDIS_UPSTREAM_PORT?weight=1&timeout=2.5&database=3"
+EOF
+    echo "INFO: Redis configured successfully."
+  else
+    echo "INFO: Redis not configured. Either Redis is not installed or REDIS_UPSTREAM is not set."
+  fi
 }
 
-# install_plugin: Installs plugin for WordPress or similar
-#
-# Globals:
-#   NGINX_APP_PLUGIN
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
+
+# Function: Install Plugins
 install_plugin() {
-  if [[ ! -d /usr/src/plugins/$NGINX_APP_PLUGIN ]]; then
+  if [[ ! -d /usr/src/plugins/${NGINX_APP_PLUGIN} ]]; then
     echo "INFO: NGINX_APP_PLUGIN is not located in the plugin directory. Nothing to install..."
   else
-    echo "OK: Installing NGINX_APP_PLUGIN=$NGINX_APP_PLUGIN..."
+    echo "OK: Installing NGINX_APP_PLUGIN=${NGINX_APP_PLUGIN}..."
     sleep 10
-    chmod +x "/usr/src/plugins/$NGINX_APP_PLUGIN/install"
-    "/usr/src/plugins/$NGINX_APP_PLUGIN/install"
+    chmod +x "/usr/src/plugins/${NGINX_APP_PLUGIN}/install.sh"
+    bash -x /usr/src/plugins/${NGINX_APP_PLUGIN}/install.sh
   fi
 }
 
-# monit: Configures Monit
-#
-# Globals:
-#   APP_DOCROOT
-#   CACHE_PREFIX
-#   PHP_FPM_PORT
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
-monit() {
-  {
-    echo 'set daemon 10'
-    echo '    with START DELAY 10'
-    echo 'set pidfile /var/run/monit.pid'
-    echo 'set statefile /var/run/monit.state'
-    echo 'set httpd port 2849 and'
-    echo '    use address localhost'
-    echo '    allow localhost'
-    echo 'set logfile syslog'
-    echo 'set eventqueue'
-    echo '    basedir /var/run'
-    echo '    slots 100'
-    echo 'include /etc/monit.d/*'
-  } > /etc/monitrc
+# Function: Configure Permissions
+set_permissions() {
+  echo "INFO: Setting ownership and permissions..."
 
-  find "/etc/monit.d" -maxdepth 4 -type f -exec sed -i -e 's|{{APP_DOCROOT}}|'"${APP_DOCROOT}"'|g' {} +
-  find "/etc/monit.d" -maxdepth 4 -type f -exec sed -i -e 's|{{CACHE_PREFIX}}|'"${CACHE_PREFIX}"'|g' {} +
-  find "/etc/monit.d" -maxdepth 4 -type f -exec sed -i -e 's|{{PHP_FPM_PORT}}|'"${PHP_FPM_PORT}"'|g' {} +
+  # Set ownership for all files and directories
+  find "${APP_DOCROOT}" ! -user www-data -exec chown www-data:www-data {} +
+  find "${APP_DOCROOT}" -type d ! -perm 755 -exec chmod 755 {} +
+  find "${APP_DOCROOT}" -type f ! -perm 644 -exec chmod 644 {} +
 
-  chmod 700 /etc/monitrc
-  run="monit -c /etc/monitrc" && bash -c "${run}"
+  echo "INFO: Ownership and permissions configured successfully."
 }
 
-# permissions: Sets correct permissions for php-fpm
-#
-# Globals:
-#   APP_DOCROOT
-#   CACHE_PREFIX
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
-permissions() {
-  echo "Setting ownership and permissions on APP_ROOT and CACHE_PREFIX... "
-
-  find "${APP_DOCROOT}" ! -user www-data -exec /usr/bin/env bash -c 'i="$1"; chown www-data:www-data "$i"' _ {} +
-  find "${APP_DOCROOT}" ! -perm 755 -type d -exec /usr/bin/env bash -c 'i="$1"; chmod 755  "$i"' _ {} +
-  find "${APP_DOCROOT}" ! -perm 644 -type f -exec /usr/bin/env bash -c 'i="$1"; chmod 644 "$i"' _ {} +
-  find "${CACHE_PREFIX}" ! -perm 755 -type d -exec /usr/bin/env bash -c 'i="$1"; chmod 755  "$i"' _ {} +
-  find "${CACHE_PREFIX}" ! -perm 644 -type f -exec /usr/bin/env bash -c 'i="$1"; chmod 644 "$i"' _ {} +
-}
-
-# run: Executes all functions to start the services
-#
-# Globals:
-#   REDIS_UPSTREAM
-#   NGINX_APP_PLUGIN
-#
-# Arguments:
-#   None
-#
-# Returns:
-#   None
+# Function: Main Run
 run() {
   php_fpm
-  if [[ -z $REDIS_UPSTREAM ]]; then
-    echo "OK: Redis is not present so we will not activate it"
-  else
-    redis
-  fi
-  monit
-  if [[ -z $NGINX_APP_PLUGIN ]]; then
-    echo "OK: No plugins will be activated"
-  else
-    install_plugin
-  fi
-  echo "OK: All processes have completed. Service is ready..."
+  redis
+  install_plugin
+  set_permissions
+  echo "INFO: Entry script completed. Starting PHP-FPM..."
 }
 
+# Execute the main run function
 run
 
+# Replace the current process with the CMD passed in the Dockerfile
 exec "$@"

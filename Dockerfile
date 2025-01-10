@@ -1,49 +1,50 @@
-# Use the official PHP image with PHP 8.3 and FPM
-FROM php:8.3-fpm-alpine
+# syntax=docker/dockerfile:1.4
+
+# Stage 1: Builder Stage
+FROM php:8.4-fpm-alpine AS builder
 
 LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
 
-# Set environment variables
-ENV LOG_PREFIX=/var/log/php-fpm
-ENV TEMP_PREFIX=/tmp
-ENV CACHE_PREFIX=/var/cache
+# Set build arguments with default values
+ARG IMAGICK_VERSION=3.7.0
 
-# Create necessary directories and logs, and adjust permissions
-RUN set -ex \
-    && mkdir -p /var/run/php-fpm \
-    && mkdir -p "${LOG_PREFIX}" \
-    && touch "${LOG_PREFIX}/access.log" \
-    && touch "${LOG_PREFIX}/error.log" \
-    && ln -sf /dev/stdout "${LOG_PREFIX}/access.log" \
-    && ln -sf /dev/stderr "${LOG_PREFIX}/error.log"
-
-# Install additional dependencies and PHP extensions
-RUN set -ex \
-    && apk add --no-cache \
-        bash \
-        icu-libs \
-        libzip \
-        imagemagick \
-        monit \
-        openssl \
-        ca-certificates \
-        libjpeg-turbo \
-        libpng \
-        freetype \
-        libgomp \
-        libwebp \
-    && apk add --no-cache --virtual .build-deps \
+# Install build dependencies more efficiently
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
         icu-dev \
         freetype-dev \
         imagemagick-dev \
+        ghostscript-dev \
         libzip-dev \
+        libavif-dev \
         libpng-dev \
         libjpeg-turbo-dev \
         libwebp-dev \
-    # Configure and install PHP extensions
-    && docker-php-ext-configure gd \
+        mariadb-dev \
+        gcc \
+        musl-dev \
+        make \
+    && apk add --no-cache \
+        icu-libs \
+        libzip \
+        imagemagick \
+        libjpeg-turbo \
+        libpng \
+        freetype \
+        libwebp \
+        bash \
+        openssl \
+        mariadb-client \
+        ca-certificates \
+        monit \
+        file
+
+# Configure and install PHP extensions in a single layer
+RUN --mount=type=cache,target=/tmp \
+    docker-php-ext-configure gd \
         --with-freetype \
+        --with-avif \
         --with-jpeg \
         --with-webp \
     && docker-php-ext-install -j"$(nproc)" \
@@ -54,34 +55,83 @@ RUN set -ex \
         pdo_mysql \
         mysqli \
         zip \
+    # Install Imagick
+    && curl -L -o /tmp/imagick.tar.gz https://github.com/Imagick/imagick/archive/tags/${IMAGICK_VERSION}.tar.gz \
+    && tar --strip-components=1 -xf /tmp/imagick.tar.gz \
+    && sed -i 's/php_strtolower/zend_str_tolower/g' imagick.c \
+    && phpize \
+    && ./configure \
+    && make \
+    && make install \
+    && echo "extension=imagick.so" > /usr/local/etc/php/conf.d/ext-imagick.ini \
+    # Install Redis
     && pecl install redis \
-    && docker-php-ext-enable redis \
-    # Install Imagick with patch
-    && curl -fL -o imagick.tgz 'https://pecl.php.net/get/imagick-3.7.0.tgz' \
-    && echo '5a364354109029d224bcbb2e82e15b248be9b641227f45e63425c06531792d3e *imagick.tgz' | sha256sum -c - \
-    && tar --extract --directory /tmp --file imagick.tgz imagick-3.7.0 \
-    && grep '^//#endif$' /tmp/imagick-3.7.0/Imagick.stub.php \
-    && test "$(grep -c '^//#endif$' /tmp/imagick-3.7.0/Imagick.stub.php)" = '1' \
-    && sed -i -e 's!^//#endif$!#endif!' /tmp/imagick-3.7.0/Imagick.stub.php \
-    && grep '^//#endif$' /tmp/imagick-3.7.0/Imagick.stub.php && exit 1 || : \
-    && docker-php-ext-install /tmp/imagick-3.7.0 \
-    && rm -rf imagick.tgz /tmp/imagick-3.7.0 \
-    && apk del .build-deps \
+    && docker-php-ext-enable redis mysqli pdo_mysql
+
+# Install WP-CLI
+RUN curl -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
+    && chmod +x /usr/local/bin/wp
+
+# Clean up build dependencies
+RUN apk del .build-deps \
     && rm -rf /tmp/* /var/cache/apk/*
 
-# Copy configuration files and scripts
-COPY conf/monit/ /etc/monit.d/
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-COPY check_wwwdata.sh /usr/bin/check_wwwdata
-COPY check_folder.sh /usr/bin/check_folder
+# Stage 2: Final Image
+FROM php:8.4-fpm-alpine
 
-# Expose port 9000
+# Set environment variables
+ENV LOG_PREFIX=/var/log/php-fpm \
+    TEMP_PREFIX=/tmp \
+    CACHE_PREFIX=/var/cache
+
+# Install runtime dependencies efficiently
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk add --no-cache \
+        bash \
+        autoconf \
+        ck \
+        hiredis \
+        hiredis-ssl \
+        lz4-libs \
+        zstd-libs \
+        icu-libs \
+        libzip \
+        imagemagick \
+        ghostscript \
+        openssl \
+        ca-certificates \
+        libjpeg-turbo \
+        libpng \
+        libavif \
+        libgomp \
+        freetype \
+        libwebp \
+        mariadb-client \
+        file \
+        tini
+
+# Copy built extensions and tools from builder
+COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=builder /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
+COPY --from=builder /usr/local/bin/wp /usr/local/bin/wp
+
+# Create necessary directories and configure logging
+RUN mkdir -p /var/run/php-fpm "${LOG_PREFIX}" \
+    && touch "${LOG_PREFIX}/access.log" "${LOG_PREFIX}/error.log" \
+    && ln -sf /dev/stdout "${LOG_PREFIX}/access.log" \
+    && ln -sf /dev/stderr "${LOG_PREFIX}/error.log"
+
+# Copy configuration files and scripts
+COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
+COPY --chmod=755 scripts/ /usr/src/plugins/
+
+# Ensure www-data is the working user and owns the necessary directories
+RUN set -ex \
+    && id -u www-data || adduser -u 82 -D -S -G www-data www-data \
+    && mkdir -p /var/www/html \
+    && chown -R www-data:www-data /var/www/html
+
 EXPOSE 9000
 
-# Make scripts executable
-RUN chmod +x /docker-entrypoint.sh /usr/bin/check_wwwdata /usr/bin/check_folder
-
-# Set the entrypoint script to be run on container start
-ENTRYPOINT ["/usr/bin/env", "bash", "/docker-entrypoint.sh"]
-
+ENTRYPOINT ["/sbin/tini", "--", "/docker-entrypoint.sh"]
 CMD ["php-fpm"]
