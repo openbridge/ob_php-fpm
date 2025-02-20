@@ -25,6 +25,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
         gcc \
         musl-dev \
         make \
+        msgpack-c-dev \
     && apk add --no-cache \
         icu-libs \
         libzip \
@@ -37,7 +38,6 @@ RUN --mount=type=cache,target=/var/cache/apk \
         openssl \
         mariadb-client \
         ca-certificates \
-        monit \
         file
 
 # Configure and install PHP extensions in a single layer
@@ -65,8 +65,8 @@ RUN --mount=type=cache,target=/tmp \
     && make install \
     && echo "extension=imagick.so" > /usr/local/etc/php/conf.d/ext-imagick.ini \
     # Install Redis
-    && pecl install redis \
-    && docker-php-ext-enable redis mysqli pdo_mysql
+    && pecl install redis msgpack \
+    && docker-php-ext-enable redis msgpack mysqli pdo_mysql
 
 # Install WP-CLI
 RUN curl -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
@@ -108,7 +108,8 @@ RUN --mount=type=cache,target=/var/cache/apk \
         libwebp \
         mariadb-client \
         file \
-        tini
+        tini \
+        msgpack-c
 
 # Copy built extensions and tools from builder
 COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/

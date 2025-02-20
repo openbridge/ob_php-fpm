@@ -96,7 +96,6 @@ calculate_fpm_settings() {
     echo "- OPcache memory: ${OPCACHE_MEMORY_MB}MB"
 }
 
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_POST_MAX_SIZE}}|'"${PHP_POST_MAX_SIZE}"'|g' {} +
 # Function: Configure PHP-FPM
 php_fpm() {
     echo "INFO: Configuring PHP-FPM..."
