@@ -24,6 +24,14 @@ WORDPRESS_VERSION="${WORDPRESS_VERSION:-}"
 # INSTALL_METHOD can be "wp" or "curl". Defaults to "wp" (with fallback to curl)
 INSTALL_METHOD="${INSTALL_METHOD:-wp}"
 
+# OPcache settings with defaults
+OPCACHE_PRELOAD_ENABLE="${OPCACHE_PRELOAD_ENABLE:-0}"
+OPCACHE_PRELOAD_PATH="${OPCACHE_PRELOAD_PATH:-${APP_DOCROOT}/001-preload.php}"
+
+# Redis settings with defaults
+REDIS_UPSTREAM_HOST="${REDIS_UPSTREAM_HOST:-127.0.0.1}"
+REDIS_UPSTREAM_PORT="${REDIS_UPSTREAM_PORT:-6379}"
+
 #######################################
 # Logging function
 #######################################
@@ -32,34 +40,50 @@ log() {
 }
 
 #######################################
+# Dependency check function
+#######################################
+check_dependency() {
+  command -v "$1" >/dev/null 2>&1 || { log "$1 is required but not installed. Aborting."; exit 1; }
+}
+
+# Check required commands
+check_dependency curl
+check_dependency unzip
+check_dependency openssl
+
+# If INSTALL_METHOD is not set to 'curl', verify WP-CLI is available
+if [[ "$INSTALL_METHOD" != "curl" ]]; then
+  if ! command -v wp >/dev/null 2>&1; then
+    log "WP-CLI not found. Falling back to curl installation."
+    INSTALL_METHOD="curl"
+  fi
+fi
+
+
+#######################################
 # Generates fallback salts if the API fails
 #######################################
-function generate_fallback_salts() {
+generate_fallback_salts() {
   local keys=("AUTH" "SECURE_AUTH" "LOGGED_IN" "NONCE")
-  local salt=""
-  local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-={}[]|:;<>,.?~`'
-  
+  local salts=""
+
   for key in "${keys[@]}"; do
-    local random_string=""
-    for i in {1..64}; do
-      random_string+="${chars:$((RANDOM % ${#chars})):1}"
-    done
-    salt+="define('${key}_KEY', '${random_string}');\n"
-    
-    random_string=""
-    for i in {1..64}; do
-      random_string+="${chars:$((RANDOM % ${#chars})):1}"
-    done
-    salt+="define('${key}_SALT', '${random_string}');\n"
+    local auth_key
+    auth_key=$(openssl rand -base64 48)
+    local auth_salt
+    auth_salt=$(openssl rand -base64 48)
+    salts+="define('${key}_KEY', '${auth_key}');\n"
+    salts+="define('${key}_SALT', '${auth_salt}');\n"
   done
-  
-  echo -e "$salt"
+
+  echo -e "$salts"
 }
+
 
 #######################################
 # Downloads WordPress using wp-cli
 #######################################
-function wordpress_install_wp_cli() {
+wordpress_install_wp_cli() {
   log "Installing WordPress via WP-CLI method..."
   mkdir -p "${APP_DOCROOT}"
   cd "${APP_DOCROOT}" || exit
@@ -77,7 +101,7 @@ function wordpress_install_wp_cli() {
 #######################################
 # Downloads WordPress using curl (fallback method)
 #######################################
-function wordpress_install_curl() {
+wordpress_install_curl() {
   log "Installing WordPress via curl method..."
   mkdir -p "${APP_DOCROOT}"
   cd "${APP_DOCROOT}" || exit
@@ -91,18 +115,26 @@ function wordpress_install_curl() {
   log "Downloading WordPress from ${download_url}..."
   curl -fSL "${download_url}" -o "${wp_zip}"
   log "Download complete; unzipping..."
-  unzip -q "${wp_zip}" -d /tmp
+
+  # Create a temporary directory for extraction
+  local tmp_dir
+  tmp_dir=$(mktemp -d)
+
+  unzip -q "${wp_zip}" -d "${tmp_dir}"
 
   # Move files from the extracted "wordpress" folder to the document root
-  cp -r /tmp/wordpress/* ./
-  rm -rf /tmp/wordpress "${wp_zip}"
+  cp -r "${tmp_dir}/wordpress/"* ./
+
+  # Cleanup temporary directory and zip file
+  rm -rf "${tmp_dir}" "${wp_zip}"
   chown -R www-data:www-data "${APP_DOCROOT}"
 }
+
 
 #######################################
 # Configures WordPress and installs plugins
 #######################################
-function wordpress_config() {
+wordpress_config() {
   log "Configuring WordPress..."
 
   local MAX_RETRIES=3
@@ -130,8 +162,50 @@ function wordpress_config() {
 
   cd "${APP_DOCROOT}" || exit
 
-  # Create the wp-config.php file
-  cat <<EOF > wp-config.php
+  if [[ "${OPCACHE_PRELOAD_ENABLE}" == "1" ]]; then
+    log "Generating OPcache preload script at ${OPCACHE_PRELOAD_PATH}..."
+    
+    # Create the preload script
+    cat <<'EOF' > "${OPCACHE_PRELOAD_PATH}"
+<?php
+/**
+ * OPcache Preload File for WordPress
+ *
+ * This script precompiles a curated list of WordPress core files into OPcache.
+ * It's meant to be used with PHP 7.4+ with opcache.preload enabled.
+ */
+if (!function_exists('opcache_compile_file')) {
+    return;
+}
+
+// Define an array of core files to preload.
+$preload_files = [
+    __DIR__ . '/wp-includes/load.php',
+    __DIR__ . '/wp-includes/functions.php',
+    __DIR__ . '/wp-includes/class-wp-hook.php',
+    __DIR__ . '/wp-includes/post.php',
+    __DIR__ . '/wp-includes/formatting.php',
+    __DIR__ . '/wp-includes/query.php',
+    __DIR__ . '/wp-includes/class-wpdb.php',
+    __DIR__ . '/wp-includes/cache.php',
+    __DIR__ . '/wp-includes/option.php',
+    __DIR__ . '/wp-includes/template.php',
+    __DIR__ . '/wp-includes/class-wp-query.php',
+    __DIR__ . '/wp-includes/class-wp.php',
+    __DIR__ . '/wp-includes/theme.php',
+    __DIR__ . '/wp-settings.php',
+];
+
+foreach ($preload_files as $file) {
+    if (file_exists($file)) {
+        opcache_compile_file($file);
+    }
+}
+EOF
+  fi  # Close the if OPCACHE_PRELOAD_ENABLE condition
+
+# Create the wp-config.php file
+cat <<EOF > wp-config.php
 <?php
 define('DB_NAME', '${WORDPRESS_DB_NAME}');
 define('DB_USER', '${WORDPRESS_DB_USER}');
@@ -143,21 +217,23 @@ define('DB_COLLATE', '');
 // Salts
 $wp_salts
 
-\$table_prefix = 'wp_';
-define('WP_DEBUG', false);
+\$table_prefix = '${WORDPRESS_TABLE_PREFIX:-wp_}';
+define('WP_DEBUG', ${WORDPRESS_DEBUG:-false});
 
-// Modified HTTPS detection
+// Improved HTTPS detection
 \$is_https = false;
-if (isset(\$_SERVER['HTTP_X_FORWARDED_PROTO'])) {
-    \$is_https = \$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https';
-} elseif (isset(\$_SERVER['HTTPS'])) {
-    \$is_https = \$_SERVER['HTTPS'] === 'on';
+if (isset(\$_SERVER['HTTP_X_FORWARDED_PROTO']) && \$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    \$is_https = true;
+} elseif (isset(\$_SERVER['HTTP_X_FORWARDED_SSL']) && \$_SERVER['HTTP_X_FORWARDED_SSL'] === 'on') {
+    \$is_https = true;
+} elseif (isset(\$_SERVER['HTTPS']) && \$_SERVER['HTTPS'] === 'on') {
+    \$is_https = true;
 }
 \$_SERVER['HTTPS'] = \$is_https ? 'on' : 'off';
 
 // Redis Configuration (if using Redis caching)
-define('WP_REDIS_HOST', '${REDIS_UPSTREAM_HOST:-127.0.0.1}');
-define('WP_REDIS_PORT', ${REDIS_UPSTREAM_PORT:-6379});
+define('WP_REDIS_HOST', '${REDIS_UPSTREAM_HOST}');
+define('WP_REDIS_PORT', ${REDIS_UPSTREAM_PORT});
 define('WP_REDIS_DATABASE', 1);
 define('WP_REDIS_PREFIX', 'wp_cache:');
 define('WP_REDIS_MAXTTL', 86400);
@@ -170,7 +246,6 @@ define('WP_REDIS_SELECTIVE_FLUSH', true);
 define('WP_REDIS_GRACEFUL', true);
 define('WP_REDIS_PERSISTENT', true);
 define('WP_REDIS_SERIALIZER', 'msgpack');
-define('WP_REDIS_POOL_SIZE', 10);
 
 // Global groups for Redis (optional)
 define('WP_REDIS_GLOBAL_GROUPS', [
@@ -196,6 +271,7 @@ define('WP_REDIS_IGNORED_GROUPS', ['counts', 'plugins']);
 define('FORCE_SSL_ADMIN', true);
 define('DISALLOW_FILE_EDIT', false);
 define('FS_METHOD', 'direct');
+define('WP_CACHE', true);
 
 if (!defined('ABSPATH')) {
     define('ABSPATH', dirname(__FILE__) . '/');
@@ -227,22 +303,29 @@ EOF
   log "WordPress configuration complete."
   log "Username: ${WORDPRESS_ADMIN} | Password: ${WORDPRESS_ADMIN_PASSWORD}"
   echo "Username: ${WORDPRESS_ADMIN} | Password: ${WORDPRESS_ADMIN_PASSWORD}" > /home/creds.txt
+  chmod 600 /home/creds.txt
+
 }
 
 #######################################
 # Sets appropriate file and directory permissions
 #######################################
-function cleanup() {
+cleanup() {
   log "Setting file permissions..."
-  find "${APP_DOCROOT}" ! -user www-data -exec chown www-data:www-data {} \;
-  find "${APP_DOCROOT}" -type d ! -perm 755 -exec chmod 755 {} \;
-  find "${APP_DOCROOT}" -type f ! -perm 644 -exec chmod 644 {} \;
+  # Change ownership for files and directories not owned by www-data
+  find "${APP_DOCROOT}" ! -user www-data -exec chown www-data:www-data {} +
+  
+  # Set directory permissions to 755
+  find "${APP_DOCROOT}" -type d ! -perm 755 -exec chmod 755 {} +
+  
+  # Set file permissions to 644
+  find "${APP_DOCROOT}" -type f ! -perm 644 -exec chmod 644 {} +
 }
 
 #######################################
 # Main installation function
 #######################################
-function run() {
+run() {
   if [[ ! -f "${APP_DOCROOT}/wp-config.php" ]]; then
     # Choose installation method based on INSTALL_METHOD or wp-cli availability
     if [[ "$INSTALL_METHOD" == "curl" ]]; then
@@ -255,6 +338,11 @@ function run() {
         wordpress_install_curl
       fi
     fi
+
+     # Add this snippet to copy your object cache file into wp-content
+    log "Copying object cache file..."
+    cp "/usr/src/plugins/${NGINX_APP_PLUGIN}/object-cache.php" "${APP_DOCROOT}/wp-content/object-cache.php"
+
     wordpress_config
     cleanup
   else

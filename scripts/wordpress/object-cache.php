@@ -1965,6 +1965,10 @@ LUA;
     /**
      * Ensure we're using the correct database
      */
+    /**
+     * Fixed ensure_database method to prevent unnecessary database switching
+     * Ensure we're using the correct database
+     */
     private function ensure_database(int $db): bool {
         if (!$this->redis_status()) {
             return false;
@@ -1990,6 +1994,16 @@ LUA;
         }
     
         try {
+            // Initialize current_database if not set yet
+            if ($this->current_database === null) {
+                $this->current_database = 0;
+                
+                // If we're already targeting DB 0, we can skip the select call
+                if ($db === 0) {
+                    return true;
+                }
+            }
+            
             // Verify DB exists before switching
             $dbs = $this->get_database_count();
             if ($db >= $dbs) {
@@ -2048,7 +2062,16 @@ LUA;
         $this->db_switch_failures[$db]['time'] = time();
     }
 
+    /**
+     * Fix for the "Using fallback database 0 instead of 0" message
+     * Use fallback database when the primary database selection fails
+     */
     private function use_fallback_database(int $attempted_db): bool {
+        // Skip the fallback logic if attempting to use database 0 already
+        if ($attempted_db === 0 && $this->current_database === 0) {
+            return true;
+        }
+
         // If no fallback set, try to use DB 0
         if ($this->fallback_database === null) {
             try {
@@ -2062,8 +2085,8 @@ LUA;
             }
         }
 
-        // Log fallback usage
-        if ($this->fallback_database !== null) {
+        // Only log fallback usage when actually changing databases
+        if ($this->fallback_database !== null && $attempted_db !== $this->fallback_database) {
             error_log(sprintf(
                 'Redis Cache: Using fallback database %d instead of %d',
                 $this->fallback_database,
@@ -2072,7 +2095,7 @@ LUA;
             return true;
         }
 
-        return false;
+        return $this->fallback_database !== null;
     }
 
     // Add method to reset failure tracking
@@ -2085,8 +2108,8 @@ LUA;
         $group = $group ?: 'default';
         $g = $this->sanitize_key_part($group);
 
-        // Determine target database
-        $target_db = $this->is_global_group($g) ? 0 : 1;
+        // Always use database 0 
+        $target_db = 0;
         
         // Try to switch database, fall back to current if failed
         if (!$this->ensure_database($target_db)) {
@@ -2176,6 +2199,10 @@ LUA;
     /**
      * Handle Redis failure gracefully or throw an exception.
      */
+    /**
+     * Fix for the "fallback database 0 instead of 0" error message and the undefined constant error.
+     * Handle Redis failure gracefully or throw an exception.
+     */
     private function handle_exception(\Exception $e): void {
         $context = [
             'error' => $e->getMessage(),
@@ -2185,20 +2212,21 @@ LUA;
         ];
     
         if ($e instanceof \RedisException) {
-            switch ($e->getCode()) {
-                case \Redis::ERR_READONLY:
-                    $context['type'] = 'readonly_error';
-                    break;
-                case \Redis::ERR_CONNECTED:
-                    $context['type'] = 'connection_error';
-                    // Attempt reconnection for connection errors
-                    if ($this->attempt_reconnect()) {
-                        error_log('Redis: Successfully reconnected after connection error');
-                        return; // Exit if reconnection successful
-                    }
-                    break;
-                default:
-                    $context['type'] = 'redis_error';
+            // Don't rely on specific Redis constants that may not be defined
+            // Use error code numbers directly or check error message patterns
+            $error_code = $e->getCode();
+            
+            if ($error_code === -1 || stripos($e->getMessage(), 'read only') !== false) {
+                $context['type'] = 'readonly_error';
+            } elseif ($error_code === 0 || stripos($e->getMessage(), 'connect') !== false) {
+                $context['type'] = 'connection_error';
+                // Attempt reconnection for connection errors
+                if ($this->attempt_reconnect()) {
+                    error_log('Redis: Successfully reconnected after connection error');
+                    return; // Exit if reconnection successful
+                }
+            } else {
+                $context['type'] = 'redis_error';
             }
         }
     

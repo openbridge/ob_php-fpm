@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 
 # Stage 1: Builder Stage
-FROM php:8.4-fpm-alpine AS builder
+FROM php:8.4.4-fpm-alpine AS builder
 
 LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
 
@@ -77,12 +77,16 @@ RUN apk del .build-deps \
     && rm -rf /tmp/* /var/cache/apk/*
 
 # Stage 2: Final Image
-FROM php:8.4-fpm-alpine
+FROM php:8.4.4-fpm-alpine
 
 # Set environment variables
 ENV LOG_PREFIX=/var/log/php-fpm \
     TEMP_PREFIX=/tmp \
+    APP_DOCROOT=/usr/share/nginx/html \
     CACHE_PREFIX=/var/cache
+
+# Set working directory to NGINX_DOCROOT
+WORKDIR ${APP_DOCROOT}
 
 # Install runtime dependencies efficiently
 RUN --mount=type=cache,target=/var/cache/apk \
@@ -129,8 +133,8 @@ COPY --chmod=755 scripts/ /usr/src/plugins/
 # Ensure www-data is the working user and owns the necessary directories
 RUN set -ex \
     && id -u www-data || adduser -u 82 -D -S -G www-data www-data \
-    && mkdir -p /var/www/html \
-    && chown -R www-data:www-data /var/www/html
+    && mkdir -p /usr/share/nginx/html \
+    && chown -R www-data:www-data /usr/share/nginx/html
 
 EXPOSE 9000
 
