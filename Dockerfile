@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 
 # Stage 1: Builder Stage
-FROM php:8.4-fpm-alpine AS builder
+FROM php:8.4.4-fpm-alpine AS builder
 
 LABEL maintainer="Thomas Spicer (thomas@openbridge.com)"
 
@@ -25,6 +25,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
         gcc \
         musl-dev \
         make \
+        msgpack-c-dev \
     && apk add --no-cache \
         icu-libs \
         libzip \
@@ -37,7 +38,6 @@ RUN --mount=type=cache,target=/var/cache/apk \
         openssl \
         mariadb-client \
         ca-certificates \
-        monit \
         file
 
 # Configure and install PHP extensions in a single layer
@@ -65,8 +65,8 @@ RUN --mount=type=cache,target=/tmp \
     && make install \
     && echo "extension=imagick.so" > /usr/local/etc/php/conf.d/ext-imagick.ini \
     # Install Redis
-    && pecl install redis \
-    && docker-php-ext-enable redis mysqli pdo_mysql
+    && pecl install redis msgpack \
+    && docker-php-ext-enable redis msgpack mysqli pdo_mysql
 
 # Install WP-CLI
 RUN curl -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
@@ -77,12 +77,16 @@ RUN apk del .build-deps \
     && rm -rf /tmp/* /var/cache/apk/*
 
 # Stage 2: Final Image
-FROM php:8.4-fpm-alpine
+FROM php:8.4.4-fpm-alpine
 
 # Set environment variables
 ENV LOG_PREFIX=/var/log/php-fpm \
     TEMP_PREFIX=/tmp \
+    APP_DOCROOT=/usr/share/nginx/html \
     CACHE_PREFIX=/var/cache
+
+# Set working directory to NGINX_DOCROOT
+WORKDIR ${APP_DOCROOT}
 
 # Install runtime dependencies efficiently
 RUN --mount=type=cache,target=/var/cache/apk \
@@ -108,7 +112,8 @@ RUN --mount=type=cache,target=/var/cache/apk \
         libwebp \
         mariadb-client \
         file \
-        tini
+        tini \
+        msgpack-c
 
 # Copy built extensions and tools from builder
 COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
@@ -128,8 +133,8 @@ COPY --chmod=755 scripts/ /usr/src/plugins/
 # Ensure www-data is the working user and owns the necessary directories
 RUN set -ex \
     && id -u www-data || adduser -u 82 -D -S -G www-data www-data \
-    && mkdir -p /var/www/html \
-    && chown -R www-data:www-data /var/www/html
+    && mkdir -p /usr/share/nginx/html \
+    && chown -R www-data:www-data /usr/share/nginx/html
 
 EXPOSE 9000
 

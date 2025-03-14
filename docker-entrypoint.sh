@@ -7,7 +7,7 @@ set -euo pipefail
 # Globals and Default Values
 : "${PHP_MAX_EXECUTION_TIME:=300}"
 : "${PHP_FPM_CONF_DIR:=/usr/local/etc}"
-: "${PHP_MEMORY_LIMIT:=128}"  # Changed default to 128M
+: "${PHP_MEMORY_LIMIT:=auto}"  # Set to "auto" to trigger dynamic calculation if not provided
 : "${PHP_POST_MAX_SIZE:=50}"
 : "${PHP_UPLOAD_MAX_FILESIZE:=50}"
 : "${PHP_OPCACHE_ENABLE:=1}"
@@ -15,7 +15,13 @@ set -euo pipefail
 : "${REDIS_UPSTREAM_HOST:=redis}"
 : "${REDIS_UPSTREAM_PORT:=6379}"
 : "${LOG_PREFIX:=/var/log/php-fpm}"
-: "${DEBUG:=0}"                        
+: "${DEBUG:=0}"
+: "${APP_DOCROOT:=/usr/share/nginx/html}"   # Default document root
+: "${CACHE_PREFIX:=/var/cache}"     # Default cache directory
+: "${OPCACHE_PRELOAD_ENABLE:=1}"
+: "${OPCACHE_PRELOAD_PATH:=${APP_DOCROOT}/001-preload.php}"
+
+export OPCACHE_PRELOAD_PATH
 
 # Debug Mode
 if [[ "$DEBUG" == "1" ]]; then
@@ -35,9 +41,9 @@ calculate_fpm_settings() {
 
     # Calculate available RAM for PHP processes (30% of total RAM as per your original script)
     PHP_AVAILABLE_RAM_MB=$(awk "BEGIN {print $TOTAL_RAM_MB * 0.30}")
-    
-    # Use memory limit from environment or calculate based on available RAM
-    if [ -z "${PHP_MEMORY_LIMIT-}" ]; then
+
+    # If PHP_MEMORY_LIMIT is set to "auto", calculate a dynamic value based on available RAM.
+    if [ "$PHP_MEMORY_LIMIT" = "auto" ]; then
         # Calculate memory limit as 20% of PHP available RAM
         PHP_MEMORY_LIMIT=$(awk "BEGIN {printf \"%.0f\", $PHP_AVAILABLE_RAM_MB * 0.20}")
         # Ensure memory limit is between 128MB and 1024MB
@@ -51,7 +57,7 @@ calculate_fpm_settings() {
     # Calculate max children based on available RAM and memory limit
     PHP_MAX_CHILDREN=$(awk "BEGIN {print int($PHP_AVAILABLE_RAM_MB / $PHP_MEMORY_LIMIT)}")
     
-    # Ensure minimum of 2 children even on very constrained systems
+    # Ensure a minimum of 2 children even on very constrained systems
     if [ "$PHP_MAX_CHILDREN" -lt 2 ]; then
         PHP_MAX_CHILDREN=2
     fi
@@ -96,7 +102,6 @@ calculate_fpm_settings() {
     echo "- OPcache memory: ${OPCACHE_MEMORY_MB}MB"
 }
 
-  find /usr/local/etc/ -maxdepth 3 -type f -exec sed -i -e 's|{{PHP_POST_MAX_SIZE}}|'"${PHP_POST_MAX_SIZE}"'|g' {} +
 # Function: Configure PHP-FPM
 php_fpm() {
     echo "INFO: Configuring PHP-FPM..."
@@ -141,16 +146,20 @@ pm.max_children = ${PHP_MAX_CHILDREN}
 pm.start_servers = ${START_SERVERS}
 pm.min_spare_servers = ${MIN_SPARE_SERVERS}
 pm.max_spare_servers = ${MAX_SPARE_SERVERS}
+; Added process idle timeout for better recycling of idle workers
+pm.process_idle_timeout = 10s
 pm.max_requests = ${MAX_REQUESTS}
 pm.status_path = /status
 EOF
 
     cat <<EOF > "${PHP_FPM_CONF_DIR}/php/conf.d/50-setting.ini"
+expose_php=Off
 max_execution_time=${PHP_MAX_EXECUTION_TIME}
 memory_limit=${PHP_MEMORY_LIMIT}M
 upload_max_filesize=${PHP_UPLOAD_MAX_FILESIZE}M
 post_max_size=${PHP_POST_MAX_SIZE}M
 file_uploads=On
+max_input_time=120  
 max_input_vars=${PHP_MAX_INPUT_VARS:-10000}
 error_reporting=E_ALL & ~E_DEPRECATED & ~E_STRICT
 display_errors=Off
@@ -168,8 +177,8 @@ session.auto_start=Off
 opcache.enable=${PHP_OPCACHE_ENABLE}
 opcache.memory_consumption=${OPCACHE_MEMORY_MB}
 opcache.max_accelerated_files=10000
-opcache.validate_timestamps=1
-opcache.revalidate_freq=2
+opcache.validate_timestamps=0
+opcache.revalidate_freq=0
 opcache.enable_cli=0
 opcache.save_comments=1
 opcache.interned_strings_buffer=16
@@ -178,14 +187,16 @@ opcache.use_cwd=1
 opcache.max_wasted_percentage=5
 opcache.consistency_checks=0
 opcache.huge_code_pages=1
+opcache.optimization_level=0x7FFFBFFF
+opcache.preload="${APP_DOCROOT}/001-preload.php"
 opcache.file_cache="${CACHE_PREFIX}/fastcgi/.opcache"
-opcache.file_cache_only=1
-opcache.file_cache_consistency_checks=1
+opcache.file_cache_only=0
+opcache.file_cache_consistency_checks=0
+opcache.preload_user=www-data
 EOF
 
     echo "INFO: PHP-FPM configured successfully."
 }
-
 
 # Function: Configure Redis
 redis() {
@@ -202,16 +213,19 @@ EOF
   fi
 }
 
-
 # Function: Install Plugins
 install_plugin() {
-  if [[ ! -d /usr/src/plugins/${NGINX_APP_PLUGIN} ]]; then
+  if [[ ! -d /usr/src/plugins/${NGINX_APP_PLUGIN:-} ]]; then
     echo "INFO: NGINX_APP_PLUGIN is not located in the plugin directory. Nothing to install..."
   else
     echo "OK: Installing NGINX_APP_PLUGIN=${NGINX_APP_PLUGIN}..."
-    sleep 10
+    # No need for sleep here - remove or reduce it if some delay is actually needed
     chmod +x "/usr/src/plugins/${NGINX_APP_PLUGIN}/install.sh"
     bash -x /usr/src/plugins/${NGINX_APP_PLUGIN}/install.sh
+    
+    # If you need to copy something, complete the command with proper arguments
+    # For example:
+    # cp "/usr/src/plugins/${NGINX_APP_PLUGIN}/some-file.php" "${APP_DOCROOT}/some-destination/"
   fi
 }
 
